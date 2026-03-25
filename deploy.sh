@@ -37,7 +37,7 @@ update() {
 
 install_template() {
   echo -e "${YELLOW}Installing Docker template on Unraid...${NC}"
-  rsync -av \
+  rsync -v --no-perms --no-owner --no-group \
     "${SCRIPT_DIR}/unraid/smoker-app.xml" \
     ${UNRAID_USER}@${UNRAID_HOST}:${TEMPLATE_DIR}/smoker-app.xml
 
