@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { CONFIG } from "./config";
 
-function CreateSession({ onCancel, onSuccess }) {
+function CreateSession() {
+	const navigate = useNavigate();
 	const [name, setName] = useState("");
 	const [meatType, setMeatType] = useState("");
 	const [notes, setNotes] = useState("");
@@ -20,9 +22,11 @@ const fetchMeatTypes = async () => {
 			const data = await response.json();
 			setMeatTypeOptions([...data.meatTypes, "Custom"]);
 
-			// If no meat types exist yet, show custom input by default
 			if (data.meatTypes.length === 0) {
 				setShowCustomMeatType(true);
+			} else {
+				// Default to the first available meat type
+				setMeatType(data.meatTypes[0]);
 			}
 		}
 	} catch (err) {
@@ -60,9 +64,7 @@ const fetchMeatTypes = async () => {
 			}
 
 			const data = await response.json();
-			console.log("Session created:", data.session);
-			alert("Session created successfully!");
-			onSuccess();
+			navigate(`/sessions/${encodeURIComponent(data.session.id)}`, { state: { session: data.session } });
 		} catch (err) {
 			console.error("Error creating session:", err);
 			alert("Failed to create session: " + err.message);
@@ -156,7 +158,7 @@ const fetchMeatTypes = async () => {
 						</button>
 						<button
 							type="button"
-							onClick={onCancel}
+							onClick={() => navigate("/")}
 							disabled={creating}
 							className="flex-1 bg-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-400 disabled:opacity-50"
 						>
