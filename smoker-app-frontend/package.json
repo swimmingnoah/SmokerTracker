@@ -12,6 +12,7 @@
     "@influxdata/influxdb-client": "^1.33.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-router-dom": "^7.13.2",
     "recharts": "^2.10.3"
   },
   "devDependencies": {

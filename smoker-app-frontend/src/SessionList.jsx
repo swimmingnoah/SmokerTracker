@@ -1,40 +1,112 @@
-function SessionList({ sessions, onSelectSession, onDelete, onCreateNew }) {
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { CONFIG } from './config';
+
+function SessionList() {
+	const navigate = useNavigate();
+	const [sessions, setSessions] = useState([]);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState(null);
+
+	useEffect(() => {
+		fetchSessions();
+	}, []);
+
+	const fetchSessions = async () => {
+		try {
+			setLoading(true);
+			setError(null);
+			const response = await fetch(`${CONFIG.apiUrl}/sessions`);
+			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+			const data = await response.json();
+			setSessions(data.sessions);
+			setLoading(false);
+		} catch (err) {
+			setError('Failed to load sessions: ' + err.message);
+			setLoading(false);
+		}
+	};
+
+	const handleDelete = async (sessionId) => {
+		const confirmed = window.confirm(
+			'Are you sure you want to delete this session? This will hide it from view (temperature data remains in InfluxDB).'
+		);
+		if (!confirmed) return;
+
+		try {
+			const response = await fetch(`${CONFIG.apiUrl}/sessions/${sessionId}`, {
+				method: 'DELETE',
+			});
+			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+			alert('Session deleted successfully!');
+			fetchSessions();
+		} catch (err) {
+			alert('Failed to delete session: ' + err.message);
+		}
+	};
+
 	const formatDate = (dateString) => {
-		if (!dateString) return "N/A";
+		if (!dateString) return 'N/A';
 		const date = new Date(dateString);
-		return date.toLocaleString("en-US", {
-			month: "short",
-			day: "numeric",
-			year: "numeric",
-			hour: "2-digit",
-			minute: "2-digit",
+		return date.toLocaleString('en-US', {
+			month: 'short',
+			day: 'numeric',
+			year: 'numeric',
+			hour: '2-digit',
+			minute: '2-digit',
 		});
 	};
 
 	const calculateDuration = (start, end) => {
-		if (!start ) return "N/A";
+		if (!start) return 'N/A';
 		const startTime = new Date(start);
-    var endTime = new Date();
-    if (end !== null) {
-      endTime = new Date(end);
-    }
+		var endTime = new Date();
+		if (end !== null) {
+			endTime = new Date(end);
+		}
 		const diffMs = endTime - startTime;
 		const hours = Math.floor(diffMs / (1000 * 60 * 60));
 		const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 		return `${hours}h ${minutes}m`;
-  };
-
-	const handleDelete = (e, sessionId) => {
-		e.stopPropagation();
-		onDelete(sessionId);
 	};
+
+	const handleDeleteClick = (e, sessionId) => {
+		e.stopPropagation();
+		handleDelete(sessionId);
+	};
+
+	if (loading) {
+		return (
+			<div className="flex items-center justify-center py-20">
+				<div className="text-center">
+					<div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+					<p className="mt-4 text-gray-600">Loading sessions...</p>
+				</div>
+			</div>
+		);
+	}
+
+	if (error) {
+		return (
+			<div className="bg-white rounded-lg shadow-lg p-8 max-w-md">
+				<h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
+				<p className="text-gray-700 mb-4">{error}</p>
+				<button
+					onClick={fetchSessions}
+					className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700"
+				>
+					Retry
+				</button>
+			</div>
+		);
+	}
 
 	return (
 		<div>
 			<div className="flex justify-between items-center mb-6">
 				<h2 className="text-2xl font-bold text-gray-800">Smoke Sessions</h2>
 				<button
-					onClick={onCreateNew}
+					onClick={() => navigate('/sessions/new')}
 					className="bg-orange-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-orange-700 flex items-center gap-2"
 				>
 					<svg
@@ -60,7 +132,7 @@ function SessionList({ sessions, onSelectSession, onDelete, onCreateNew }) {
 						No smoke sessions yet. Start your first smoke!
 					</p>
 					<button
-						onClick={onCreateNew}
+						onClick={() => navigate('/sessions/new')}
 						className="bg-orange-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-orange-700"
 					>
 						Create First Session
@@ -71,11 +143,11 @@ function SessionList({ sessions, onSelectSession, onDelete, onCreateNew }) {
 					{sessions.map((session) => (
 						<div
 							key={session.id}
-							onClick={() => onSelectSession(session)}
+							onClick={() => navigate(`/sessions/${encodeURIComponent(session.id)}`, { state: { session } })}
 							className="bg-white rounded-lg shadow hover:shadow-xl transition-shadow cursor-pointer p-6 border-l-4 border-orange-500 relative"
 						>
 							<button
-								onClick={(e) => handleDelete(e, session.id)}
+								onClick={(e) => handleDeleteClick(e, session.id)}
 								className="absolute top-4 right-4 text-gray-400 hover:text-red-600 transition-colors"
 								title="Delete session"
 							>
@@ -99,14 +171,14 @@ function SessionList({ sessions, onSelectSession, onDelete, onCreateNew }) {
 									{session.name}
 								</h3>
 								<span className="bg-orange-100 text-orange-800 text-xs font-medium px-2.5 py-0.5 rounded">
-									{session.meatType || "N/A"}
+									{session.meatType || 'N/A'}
 								</span>
 							</div>
 
 							<div className="space-y-2 text-sm text-gray-600">
 								<div>📅 {formatDate(session.startTime)}</div>
 								<div>
-									⏱️ Duration:{" "}
+									⏱️ Duration:{' '}
 									{calculateDuration(session.startTime, session.endTime)}
 								</div>
 								{session.notes && (
