@@ -10,6 +10,29 @@
   <WebUI>http://[IP]:[PORT:3001]/</WebUI>
   <ExtraParams>--restart unless-stopped</ExtraParams>
 
+  <!-- Paths -->
+  <Config
+    Name="App Path"
+    Target="/app/appdata"
+    Default="/mnt/user/appdata/smoker-tracker"
+    Mode="rw"
+    Description="Path on the Unraid host for app data storage."
+    Type="Path"
+    Display="always"
+    Required="true"
+    Mask="false">/mnt/user/appdata/smoker-tracker</Config>
+
+  <Config
+    Name="Data Path"
+    Target="/app/data"
+    Default="/mnt/user/appdata/smoker-tracker/data"
+    Mode="rw"
+    Description="Path on the Unraid host for database and data files."
+    Type="Path"
+    Display="always"
+    Required="true"
+    Mask="false">/mnt/user/appdata/smoker-tracker/data</Config>
+
   <!-- Web UI Port -->
   <Config
     Name="Web UI Port"
