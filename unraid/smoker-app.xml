@@ -14,24 +14,24 @@
   <Config
     Name="App Path"
     Target="/app/appdata"
-    Default="/mnt/user/appdata/smoker-tracker"
+    Default="/mnt/user/appdata/smoker-app"
     Mode="rw"
     Description="Path on the Unraid host for app data storage."
     Type="Path"
     Display="always"
     Required="true"
-    Mask="false">/mnt/user/appdata/smoker-tracker</Config>
+    Mask="false">/mnt/user/appdata/smoker-app</Config>
 
   <Config
     Name="Data Path"
     Target="/app/data"
-    Default="/mnt/user/appdata/smoker-tracker/data"
+    Default="/mnt/user/appdata/smoker-app/data"
     Mode="rw"
     Description="Path on the Unraid host for database and data files."
     Type="Path"
     Display="always"
     Required="true"
-    Mask="false">/mnt/user/appdata/smoker-tracker/data</Config>
+    Mask="false">/mnt/user/appdata/smoker-app/data</Config>
 
   <!-- Web UI Port -->
   <Config
