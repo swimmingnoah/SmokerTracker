@@ -7,16 +7,20 @@ function SessionList() {
 	const [sessions, setSessions] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
+	const [showHidden, setShowHidden] = useState(false);
 
 	useEffect(() => {
 		fetchSessions();
-	}, []);
+	}, [showHidden]);
 
 	const fetchSessions = async () => {
 		try {
 			setLoading(true);
 			setError(null);
-			const response = await fetch(`${CONFIG.apiUrl}/sessions`);
+			const url = showHidden
+				? `${CONFIG.apiUrl}/sessions?include_hidden=true`
+				: `${CONFIG.apiUrl}/sessions`;
+			const response = await fetch(url);
 			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 			const data = await response.json();
 			setSessions(data.sessions);
@@ -38,10 +42,22 @@ function SessionList() {
 				method: 'DELETE',
 			});
 			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-			alert('Session deleted successfully!');
 			fetchSessions();
 		} catch (err) {
 			alert('Failed to delete session: ' + err.message);
+		}
+	};
+
+	const handleRestore = async (e, sessionId) => {
+		e.stopPropagation();
+		try {
+			const response = await fetch(`${CONFIG.apiUrl}/sessions/${sessionId}/restore`, {
+				method: 'POST',
+			});
+			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+			fetchSessions();
+		} catch (err) {
+			alert('Failed to restore session: ' + err.message);
 		}
 	};
 
@@ -101,6 +117,9 @@ function SessionList() {
 		);
 	}
 
+	const visibleSessions = sessions.filter((s) => !s.hidden);
+	const hiddenSessions = sessions.filter((s) => s.hidden);
+
 	return (
 		<div>
 			<div className="flex justify-between items-center mb-6">
@@ -126,7 +145,7 @@ function SessionList() {
 				</button>
 			</div>
 
-			{sessions.length === 0 ? (
+			{visibleSessions.length === 0 && !showHidden ? (
 				<div className="bg-white rounded-lg shadow p-8 text-center">
 					<p className="text-gray-500 mb-4">
 						No smoke sessions yet. Start your first smoke!
@@ -140,7 +159,7 @@ function SessionList() {
 				</div>
 			) : (
 				<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-					{sessions.map((session) => (
+					{visibleSessions.map((session) => (
 						<div
 							key={session.id}
 							onClick={() => navigate(`/sessions/${encodeURIComponent(session.id)}`, { state: { session } })}
@@ -176,9 +195,9 @@ function SessionList() {
 							</div>
 
 							<div className="space-y-2 text-sm text-gray-600">
-								<div>📅 {formatDate(session.startTime)}</div>
+								<div>{formatDate(session.startTime)}</div>
 								<div>
-									⏱️ Duration:{' '}
+									Duration:{' '}
 									{calculateDuration(session.startTime, session.endTime)}
 								</div>
 								{session.notes && (
@@ -193,6 +212,76 @@ function SessionList() {
 					))}
 				</div>
 			)}
+
+			{/* Show Hidden Sessions Toggle */}
+			<div className="mt-8">
+				<button
+					onClick={() => setShowHidden(!showHidden)}
+					className="text-sm text-gray-500 hover:text-gray-700 font-medium flex items-center gap-1"
+				>
+					{showHidden ? 'Hide deleted sessions' : 'Show deleted sessions'}
+					<svg
+						className={`w-4 h-4 transition-transform ${showHidden ? 'rotate-180' : ''}`}
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+					</svg>
+				</button>
+
+				{showHidden && hiddenSessions.length > 0 && (
+					<div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+						{hiddenSessions.map((session) => (
+							<div
+								key={session.id}
+								className="bg-gray-100 rounded-lg shadow p-6 border-l-4 border-gray-300 relative opacity-60"
+							>
+								<button
+									onClick={(e) => handleRestore(e, session.id)}
+									className="absolute top-4 right-4 text-gray-500 hover:text-green-600 transition-colors"
+									title="Restore session"
+								>
+									<svg
+										className="w-5 h-5"
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24"
+									>
+										<path
+											strokeLinecap="round"
+											strokeLinejoin="round"
+											strokeWidth={2}
+											d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+										/>
+									</svg>
+								</button>
+
+								<div className="flex justify-between items-start mb-3 pr-8">
+									<h3 className="text-xl font-semibold text-gray-500">
+										{session.name}
+									</h3>
+									<span className="bg-gray-200 text-gray-500 text-xs font-medium px-2.5 py-0.5 rounded">
+										{session.meatType || 'N/A'}
+									</span>
+								</div>
+
+								<div className="space-y-2 text-sm text-gray-400">
+									<div>{formatDate(session.startTime)}</div>
+									<div>
+										Duration:{' '}
+										{calculateDuration(session.startTime, session.endTime)}
+									</div>
+								</div>
+							</div>
+						))}
+					</div>
+				)}
+
+				{showHidden && hiddenSessions.length === 0 && (
+					<p className="mt-4 text-sm text-gray-400 italic">No deleted sessions.</p>
+				)}
+			</div>
 		</div>
 	);
 }
