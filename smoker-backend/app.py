@@ -90,15 +90,16 @@ def create_session():
 
 @app.route('/api/meat-types', methods=['GET'])
 def get_meat_types():
-    """Get distinct meat types from previous sessions"""
+    """Get distinct meat types from non-hidden sessions"""
     try:
+        hidden_sessions = get_hidden_sessions_list()
+
         query = f'''
 from(bucket: "{INFLUX_BUCKET}")
   |> range(start: -365d)
   |> filter(fn: (r) => r["domain"] == "input_text")
   |> filter(fn: (r) => r["entity_id"] == "meat_type")
   |> filter(fn: (r) => r["_field"] == "state")
-  |> distinct(column: "_value")
         '''
 
         tables = query_api.query(query, org=INFLUX_ORG)
@@ -106,6 +107,9 @@ from(bucket: "{INFLUX_BUCKET}")
         meat_types = set()
         for table in tables:
             for record in table.records:
+                session_id = record.values.get('current_session_id')
+                if session_id and session_id in hidden_sessions:
+                    continue
                 value = record.get_value()
                 if value and value.strip() and value != 'N/A':
                     meat_types.add(value.strip())
