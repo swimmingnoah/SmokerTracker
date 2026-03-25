@@ -1,1 +1,5 @@
 smoker-app-frontend/src/config.js
+smoker-app-frontend/node_modules/
+smoker-app-frontend/dist/
+.env
+.DS_Store
