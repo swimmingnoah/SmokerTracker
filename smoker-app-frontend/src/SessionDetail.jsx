@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useParams, useLocation, useNavigate } from "react-router-dom";
 import {
 	LineChart,
 	Line,
@@ -11,7 +12,13 @@ import {
 } from "recharts";
 import { CONFIG } from "./config";
 
-function SessionDetail({ session, onBack, onDelete }) {
+function SessionDetail() {
+	const { id } = useParams();
+	const location = useLocation();
+	const navigate = useNavigate();
+
+	const [session, setSession] = useState(location.state?.session || null);
+	const [loadingSession, setLoadingSession] = useState(!location.state?.session);
 	const [temperatureData, setTemperatureData] = useState([]);
 	const [stats, setStats] = useState(null);
 	const [loading, setLoading] = useState(true);
@@ -21,27 +28,50 @@ function SessionDetail({ session, onBack, onDelete }) {
 	const [isEditingName, setIsEditingName] = useState(false);
 	const [isEditingMeatType, setIsEditingMeatType] = useState(false);
 	const [isEditingNotes, setIsEditingNotes] = useState(false);
-	const [editedName, setEditedName] = useState(session.name);
-	const [editedMeatType, setEditedMeatType] = useState(session.meatType);
-	const [editedNotes, setEditedNotes] = useState(session.notes || "");
+	const [editedName, setEditedName] = useState(session?.name || "");
+	const [editedMeatType, setEditedMeatType] = useState(session?.meatType || "");
+	const [editedNotes, setEditedNotes] = useState(session?.notes || "");
 	const [savingField, setSavingField] = useState(null);
 	const [setpoints, setSetpoints] = useState([]);
 	const [loadingSetpoints, setLoadingSetpoints] = useState(false);
+	const [pauses, setPauses] = useState([]);
+	const [isPaused, setIsPaused] = useState(false);
+	const [pauseLoading, setPauseLoading] = useState(false);
+
+	// Fetch session from API if not passed via router state
+	useEffect(() => {
+		if (session) return;
+		fetch(`${CONFIG.apiUrl}/sessions`)
+			.then((r) => r.json())
+			.then((data) => {
+				const found = data.sessions.find((s) => s.id === decodeURIComponent(id));
+				if (found) {
+					setSession(found);
+					setEditedName(found.name);
+					setEditedMeatType(found.meatType || "");
+					setEditedNotes(found.notes || "");
+				} else {
+					navigate("/");
+				}
+				setLoadingSession(false);
+			})
+			.catch(() => navigate("/"));
+	}, []);
 
 	useEffect(() => {
-		fetchTemperatureData();
-	}, [session]);
-
-	useEffect(() => {
+		if (!session) return;
 		fetchTemperatureData();
 		fetchSetpoints();
+		fetchPauses();
 	}, [session]);
 
-	// Also refresh setpoints every 30 seconds
+	// Also refresh every 30 seconds
 	useEffect(() => {
+		if (!session) return;
 		const interval = setInterval(() => {
 			fetchTemperatureData();
 			fetchSetpoints();
+			fetchPauses();
 		}, 30000);
 
 		return () => clearInterval(interval);
@@ -66,6 +96,42 @@ function SessionDetail({ session, onBack, onDelete }) {
 		} catch (err) {
 			console.error("Error fetching setpoints:", err);
 			setLoadingSetpoints(false);
+		}
+	};
+
+	const fetchPauses = async () => {
+		try {
+			const encodedSessionId = encodeURIComponent(session.id);
+			const response = await fetch(
+				`${CONFIG.apiUrl}/sessions/${encodedSessionId}/pauses`
+			);
+			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+			const result = await response.json();
+			const events = result.pauses || [];
+			setPauses(events);
+			// Determine current pause state from last event
+			const last = events[events.length - 1];
+			setIsPaused(last?.type === "pause");
+		} catch (err) {
+			console.error("Error fetching pauses:", err);
+		}
+	};
+
+	const handlePauseResume = async () => {
+		try {
+			setPauseLoading(true);
+			const encodedSessionId = encodeURIComponent(session.id);
+			const action = isPaused ? "resume" : "pause";
+			const response = await fetch(
+				`${CONFIG.apiUrl}/sessions/${encodedSessionId}/${action}`,
+				{ method: "POST" }
+			);
+			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+			await fetchPauses();
+		} catch (err) {
+			alert(`Failed to ${isPaused ? "resume" : "pause"} session: ` + err.message);
+		} finally {
+			setPauseLoading(false);
 		}
 	};
 
@@ -306,21 +372,51 @@ function SessionDetail({ session, onBack, onDelete }) {
 		});
 	};
 
+	const calculatePausedMs = () => {
+		let totalPausedMs = 0;
+		let pauseStart = null;
+		for (const event of pauses) {
+			if (event.type === "pause") {
+				pauseStart = new Date(event.time);
+			} else if (event.type === "resume" && pauseStart) {
+				totalPausedMs += new Date(event.time) - pauseStart;
+				pauseStart = null;
+			}
+		}
+		// Currently paused — count ongoing pause
+		if (pauseStart) {
+			totalPausedMs += Date.now() - pauseStart;
+		}
+		return totalPausedMs;
+	};
+
 	const calculateDuration = () => {
 		if (!session.startTime) return "N/A";
 		const startTime = new Date(session.startTime);
-		var endTime = new Date();
-		if (session.endTime !== null) {
-			endTime = new Date(session.endTime);
-		}
-		const diffMs = endTime - startTime;
-		const hours = Math.floor(diffMs / (1000 * 60 * 60));
-		const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+		const endTime = session.endTime ? new Date(session.endTime) : new Date();
+		const netMs = endTime - startTime - calculatePausedMs();
+		const hours = Math.floor(netMs / (1000 * 60 * 60));
+		const minutes = Math.floor((netMs % (1000 * 60 * 60)) / (1000 * 60));
 		return `${hours}h ${minutes}m`;
 	};
 
-	const handleDelete = () => {
-		onDelete(session.id);
+	const handleDelete = async () => {
+		const confirmed = window.confirm(
+			"Are you sure you want to delete this session? This will hide it from view (temperature data remains in InfluxDB)."
+		);
+		if (!confirmed) return;
+
+		try {
+			const response = await fetch(
+				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
+				{ method: "DELETE" }
+			);
+			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+			alert("Session deleted successfully!");
+			navigate("/");
+		} catch (err) {
+			alert("Failed to delete session: " + err.message);
+		}
 	};
 
 	const probeColors = {
@@ -337,11 +433,22 @@ function SessionDetail({ session, onBack, onDelete }) {
 		rtd: "RTD",
 	};
 
+	if (loadingSession) {
+		return (
+			<div className="flex items-center justify-center py-20">
+				<div className="text-center">
+					<div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+					<p className="mt-4 text-gray-600">Loading session...</p>
+				</div>
+			</div>
+		);
+	}
+
 	return (
 		<div>
 			<div className="flex justify-between items-center mb-6">
 				<button
-					onClick={onBack}
+					onClick={() => navigate("/")}
 					className="flex items-center text-orange-600 hover:text-orange-700 font-medium"
 				>
 					← Back to Sessions
@@ -390,12 +497,25 @@ function SessionDetail({ session, onBack, onDelete }) {
 					)}
 
 					{session.endTime === null ? (
-						<button
-							onClick={(e) => handleEndSession(e, session.id)}
-							className="bg-orange-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-orange-700 flex items-center gap-2"
-						>
-							End Smoke
-						</button>
+						<div className="flex items-center gap-2">
+							<button
+								onClick={handlePauseResume}
+								disabled={pauseLoading}
+								className={`px-6 py-3 rounded-lg font-medium flex items-center gap-2 disabled:opacity-50 ${
+									isPaused
+										? "bg-green-600 text-white hover:bg-green-700"
+										: "bg-yellow-500 text-white hover:bg-yellow-600"
+								}`}
+							>
+								{pauseLoading ? "..." : isPaused ? "▶ Resume" : "⏸ Pause"}
+							</button>
+							<button
+								onClick={(e) => handleEndSession(e, session.id)}
+								className="bg-orange-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-orange-700 flex items-center gap-2"
+							>
+								End Smoke
+							</button>
+						</div>
 					) : (
 						""
 					)}
@@ -577,6 +697,53 @@ function SessionDetail({ session, onBack, onDelete }) {
 					</div>
 				)}
 			</div>
+
+		{/* Pause History Section */}
+		{pauses.length > 0 && (
+			<div className="mt-4 p-4 bg-yellow-50 rounded-lg">
+				<h3 className="text-sm font-medium text-gray-700 mb-3">
+					⏸ Pause History
+				</h3>
+				<div className="space-y-2">
+					{pauses.map((event, index) => {
+						const isPauseEvent = event.type === "pause";
+						const nextEvent = pauses[index + 1];
+						let durationLabel = null;
+						if (isPauseEvent && nextEvent?.type === "resume") {
+							const ms = new Date(nextEvent.time) - new Date(event.time);
+							const h = Math.floor(ms / (1000 * 60 * 60));
+							const m = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+							durationLabel = h > 0 ? `${h}h ${m}m` : `${m}m`;
+						} else if (isPauseEvent && !nextEvent) {
+							durationLabel = "ongoing";
+						}
+						return (
+							<div
+								key={index}
+								className={`flex items-center justify-between p-3 bg-white rounded border-l-4 ${
+									isPauseEvent ? "border-yellow-400" : "border-green-400"
+								}`}
+							>
+								<div>
+									<span className={`text-sm font-semibold ${isPauseEvent ? "text-yellow-700" : "text-green-700"}`}>
+										{isPauseEvent ? "⏸ Paused" : "▶ Resumed"}
+									</span>
+									<div className="text-xs text-gray-500 mt-0.5">
+										{formatDate(event.time)}
+									</div>
+								</div>
+								{durationLabel && (
+									<div className="text-right">
+										<div className="text-sm font-semibold text-gray-700">{durationLabel}</div>
+										<div className="text-xs text-gray-500">off smoker</div>
+									</div>
+								)}
+							</div>
+						);
+					})}
+				</div>
+			</div>
+		)}
 
 			{loading ? (
 				<div className="bg-white rounded-lg shadow-lg p-12 text-center">
