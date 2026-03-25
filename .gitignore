@@ -3,4 +3,5 @@ smoker-app-frontend/node_modules/
 smoker-app-frontend/dist/
 .env
 smoker-backend/.env
+deploy.env
 .DS_Store

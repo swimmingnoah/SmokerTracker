@@ -3,24 +3,27 @@
 # =============================================================
 #  deploy.sh — Deploy and manage Smoker App on Unraid
 #
+#  Copy deploy.env.example to deploy.env and fill in your values.
+#
 #  Usage:
 #    ./deploy.sh              → pull latest images and restart
 #    ./deploy.sh update       → same as above
 #    ./deploy.sh template     → install Docker template on Unraid
-#                               (makes it appear in the UI dropdown)
 # =============================================================
 
-UNRAID_USER="root"
-UNRAID_HOST="YOUR_SERVER_IP"
-REMOTE_DIR="/mnt/user/appdata/smoker-app"
-TEMPLATE_DIR="/boot/config/plugins/dockerMan/templates-user"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Load local config
+if [ ! -f "${SCRIPT_DIR}/deploy.env" ]; then
+  echo "Error: deploy.env not found. Copy deploy.env.example to deploy.env and fill in your values."
+  exit 1
+fi
+source "${SCRIPT_DIR}/deploy.env"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 update() {
   echo -e "${YELLOW}Pulling latest images from ghcr.io and restarting...${NC}"
@@ -30,19 +33,19 @@ update() {
   if [ $? -eq 0 ]; then
     echo -e "${GREEN}Done! Stack updated successfully.${NC}"
   else
-    echo -e "${RED}Update failed. Check SSH connection and container logs on Unraid.${NC}"
+    echo -e "${RED}Update failed. Check SSH connection and container logs.${NC}"
     exit 1
   fi
 }
 
 install_template() {
-  echo -e "${YELLOW}Installing Docker template on Unraid...${NC}"
-  rsync -av \
+  echo -e "${YELLOW}Installing Docker template...${NC}"
+  rsync -v --no-perms --no-owner --no-group \
     "${SCRIPT_DIR}/unraid/smoker-app.xml" \
     ${UNRAID_USER}@${UNRAID_HOST}:${TEMPLATE_DIR}/smoker-app.xml
 
   if [ $? -eq 0 ]; then
-    echo -e "${GREEN}Done! Refresh the Unraid Docker UI and 'smoker-app' will appear in the template dropdown.${NC}"
+    echo -e "${GREEN}Done! Refresh the Docker UI and 'smoker-app' will appear in the template dropdown.${NC}"
   else
     echo -e "${RED}Failed to copy template. Check SSH connection.${NC}"
     exit 1
