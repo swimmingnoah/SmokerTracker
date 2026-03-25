@@ -88,6 +88,35 @@ def create_session():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/meat-types', methods=['GET'])
+def get_meat_types():
+    """Get distinct meat types from previous sessions"""
+    try:
+        query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -365d)
+  |> filter(fn: (r) => r["domain"] == "input_text")
+  |> filter(fn: (r) => r["entity_id"] == "meat_type")
+  |> filter(fn: (r) => r["_field"] == "state")
+  |> distinct(column: "_value")
+        '''
+
+        tables = query_api.query(query, org=INFLUX_ORG)
+
+        meat_types = set()
+        for table in tables:
+            for record in table.records:
+                value = record.get_value()
+                if value and value.strip() and value != 'N/A':
+                    meat_types.add(value.strip())
+
+        return jsonify({'meatTypes': sorted(meat_types)})
+
+    except Exception as e:
+        print(f"Error fetching meat types: {e}")
+        return jsonify({'meatTypes': []})
+
+
 @app.route('/api/sessions', methods=['GET'])
 def get_sessions():
     """Get all smoke sessions. Use ?include_hidden=true to include hidden ones."""
@@ -250,11 +279,13 @@ def get_session_setpoints(session_id):
         if not start_time or not end_time:
             return jsonify({'error': 'start and end times required'}), 400
 
+        # Query for setpoint data — try both 'value' and 'state' fields
+        # since HA InfluxDB integration may use either depending on entity type
         query = f'''
 from(bucket: "{INFLUX_BUCKET}")
   |> range(start: {start_time}, stop: {end_time})
   |> filter(fn: (r) => r["entity_id"] == "number.esp32smoker_smoker_set_temperature")
-  |> filter(fn: (r) => r["_field"] == "value")
+  |> filter(fn: (r) => r["_field"] == "value" or r["_field"] == "state")
   |> sort(columns: ["_time"])
         '''
 
@@ -263,9 +294,16 @@ from(bucket: "{INFLUX_BUCKET}")
         raw_points = []
         for table in tables:
             for record in table.records:
+                val = record.get_value()
+                # state field may be a string representation of a number
+                if isinstance(val, str):
+                    try:
+                        val = float(val)
+                    except ValueError:
+                        continue
                 raw_points.append({
                     'time': record.get_time().isoformat(),
-                    'value': round(record.get_value(), 1),
+                    'value': round(val, 1),
                 })
 
         # Deduplicate: only keep points where the value changed
