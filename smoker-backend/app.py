@@ -4,6 +4,7 @@ from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 from datetime import datetime
 import os
+import uuid
 
 app = Flask(__name__)
 CORS(app)
@@ -24,6 +25,67 @@ write_api = influx_client.write_api(write_options=SYNCHRONOUS)
 def health():
     """Health check endpoint"""
     return jsonify({'status': 'ok', 'message': 'Smoker Tracker API is running'})
+
+
+@app.route('/api/sessions', methods=['POST'])
+def create_session():
+    """Create a new smoke session"""
+    try:
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        meat_type = data.get('meatType', '').strip()
+        notes = data.get('notes', '').strip()
+
+        if not name:
+            return jsonify({'error': 'name required'}), 400
+
+        session_id = str(uuid.uuid4())
+        now = datetime.utcnow()
+
+        points = [
+            Point("text")
+                .tag("domain", "input_text")
+                .tag("entity_id", "current_session_id")
+                .tag("current_session_id", session_id)
+                .field("state", session_id)
+                .time(now),
+            Point("text")
+                .tag("domain", "input_text")
+                .tag("entity_id", "smoke_session_name")
+                .tag("current_session_id", session_id)
+                .field("state", name)
+                .time(now),
+            Point("text")
+                .tag("domain", "input_text")
+                .tag("entity_id", "meat_type")
+                .tag("current_session_id", session_id)
+                .field("state", meat_type)
+                .time(now),
+            Point("text")
+                .tag("domain", "input_text")
+                .tag("entity_id", "smoke_session_notes")
+                .tag("current_session_id", session_id)
+                .field("state", notes)
+                .time(now),
+        ]
+
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=points)
+
+        now_iso = now.isoformat() + 'Z'
+        return jsonify({
+            'session': {
+                'id': session_id,
+                'name': name,
+                'meatType': meat_type,
+                'notes': notes,
+                'startTime': now_iso,
+                'endTime': now_iso,
+            }
+        })
+
+    except Exception as e:
+        print(f"Error creating session: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/sessions', methods=['GET'])
@@ -176,6 +238,74 @@ def unhide_all_sessions():
         print(f"Error unhiding sessions: {e}")
         return jsonify({'error': str(e)}), 500
     
+
+@app.route('/api/sessions/<session_id>/pauses', methods=['GET'])
+def get_session_pauses(session_id):
+    """Get all pause/resume events for a session"""
+    try:
+        query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -365d)
+  |> filter(fn: (r) => r["_measurement"] == "session_pauses")
+  |> filter(fn: (r) => r["session_id"] == "{session_id}")
+  |> filter(fn: (r) => r["_field"] == "value")
+  |> sort(columns: ["_time"])
+        '''
+
+        tables = query_api.query(query, org=INFLUX_ORG)
+
+        events = []
+        for table in tables:
+            for record in table.records:
+                events.append({
+                    'time': record.get_time().isoformat(),
+                    'type': record.values.get('event_type'),
+                })
+
+        return jsonify({'pauses': events})
+
+    except Exception as e:
+        print(f"Error fetching pauses: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/sessions/<session_id>/pause', methods=['POST'])
+def pause_session(session_id):
+    """Record a pause event for a session"""
+    try:
+        point = Point("session_pauses") \
+            .tag("session_id", session_id) \
+            .tag("event_type", "pause") \
+            .field("value", 1) \
+            .time(datetime.utcnow())
+
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+
+        return jsonify({'success': True, 'message': 'Session paused'})
+
+    except Exception as e:
+        print(f"Error pausing session: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/sessions/<session_id>/resume', methods=['POST'])
+def resume_session(session_id):
+    """Record a resume event for a session"""
+    try:
+        point = Point("session_pauses") \
+            .tag("session_id", session_id) \
+            .tag("event_type", "resume") \
+            .field("value", 1) \
+            .time(datetime.utcnow())
+
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+
+        return jsonify({'success': True, 'message': 'Session resumed'})
+
+    except Exception as e:
+        print(f"Error resuming session: {e}")
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/sessions/<session_id>/notes', methods=['PUT'])
 def update_session_notes(session_id):

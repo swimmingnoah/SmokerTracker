@@ -1,0 +1,26 @@
+services:
+
+  smoker-frontend:
+    image: ghcr.io/swimmingnoah/smoker-frontend:latest
+    container_name: smoker-frontend
+    ports:
+      - "3001:80"
+    networks:
+      - smoker-net
+    depends_on:
+      - smoker-backend
+    restart: unless-stopped
+
+  smoker-backend:
+    image: ghcr.io/swimmingnoah/smoker-backend:latest
+    container_name: smoker-backend
+    # No ports: — backend is internal only, reachable via smoker-net
+    networks:
+      - smoker-net
+    env_file:
+      - .env
+    restart: unless-stopped
+
+networks:
+  smoker-net:
+    driver: bridge
