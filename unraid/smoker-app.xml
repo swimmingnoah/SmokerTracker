@@ -1,0 +1,93 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>smoker-app</Name>
+  <Repository>ghcr.io/swimmingnoah/smoker-app:latest</Repository>
+  <Registry>https://ghcr.io</Registry>
+  <Network>bridge</Network>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Overview>BBQ Smoker Tracker — track and analyze smoking sessions with real-time temperature monitoring from ESPHome probes via Home Assistant and InfluxDB.</Overview>
+  <WebUI>http://[IP]:[PORT:3001]/</WebUI>
+  <ExtraParams>--restart unless-stopped</ExtraParams>
+
+  <!-- Web UI Port -->
+  <Config
+    Name="Web UI Port"
+    Target="80"
+    Default="3001"
+    Mode="tcp"
+    Description="Port to access the Smoker Tracker web interface."
+    Type="Port"
+    Display="always"
+    Required="true"
+    Mask="false">3001</Config>
+
+  <!-- InfluxDB -->
+  <Config
+    Name="InfluxDB URL"
+    Target="INFLUX_URL"
+    Default="http://YOUR_SERVER_IP:8086"
+    Mode=""
+    Description="Full URL of your InfluxDB v2 instance. Use the LAN IP of your Unraid server, not localhost."
+    Type="Variable"
+    Display="always"
+    Required="true"
+    Mask="false">http://YOUR_SERVER_IP:8086</Config>
+
+  <Config
+    Name="InfluxDB Token"
+    Target="INFLUX_TOKEN"
+    Default=""
+    Mode=""
+    Description="InfluxDB v2 authentication token. Find this in InfluxDB UI under Data → Tokens."
+    Type="Variable"
+    Display="always"
+    Required="true"
+    Mask="true"></Config>
+
+  <Config
+    Name="InfluxDB Organization"
+    Target="INFLUX_ORG"
+    Default="homeassistant"
+    Mode=""
+    Description="InfluxDB organization name."
+    Type="Variable"
+    Display="always"
+    Required="true"
+    Mask="false">homeassistant</Config>
+
+  <Config
+    Name="InfluxDB Bucket"
+    Target="INFLUX_BUCKET"
+    Default="smoker"
+    Mode=""
+    Description="InfluxDB bucket where smoker data is stored."
+    Type="Variable"
+    Display="always"
+    Required="true"
+    Mask="false">smoker</Config>
+
+  <!-- Home Assistant (optional) -->
+  <Config
+    Name="Home Assistant URL"
+    Target="HA_URL"
+    Default="http://YOUR_SERVER_IP:8123"
+    Mode=""
+    Description="URL of your Home Assistant instance. Optional — reserved for future use."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">http://YOUR_SERVER_IP:8123</Config>
+
+  <Config
+    Name="Home Assistant Token"
+    Target="HA_TOKEN"
+    Default=""
+    Mode=""
+    Description="Home Assistant long-lived access token. Optional — reserved for future use."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="true"></Config>
+
+</Container>
