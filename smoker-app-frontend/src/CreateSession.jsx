@@ -9,7 +9,7 @@ function CreateSession() {
 	const [notes, setNotes] = useState("");
 	const [creating, setCreating] = useState(false);
 	const [meatTypeOptions, setMeatTypeOptions] = useState(["Custom"]);
-	const [showCustomMeatType, setShowCustomMeatType] = useState(false);
+	const [showCustomMeatType, setShowCustomMeatType] = useState(true);
 
 	useEffect(() => {
 		fetchMeatTypes();
@@ -27,6 +27,7 @@ const fetchMeatTypes = async () => {
 			} else {
 				// Default to the first available meat type
 				setMeatType(data.meatTypes[0]);
+				setShowCustomMeatType(false);
 			}
 		}
 	} catch (err) {
@@ -74,6 +75,14 @@ const fetchMeatTypes = async () => {
 
 	return (
 		<div className="max-w-2xl mx-auto">
+			<div className="mb-6">
+				<button
+					onClick={() => navigate("/")}
+					className="flex items-center text-orange-600 hover:text-orange-700 font-medium"
+				>
+					← Back to Sessions
+				</button>
+			</div>
 			<div className="bg-white rounded-lg shadow-lg p-8">
 				<h2 className="text-2xl font-bold text-gray-800 mb-6">
 					Start New Smoke Session

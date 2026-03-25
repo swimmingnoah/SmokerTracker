@@ -90,11 +90,12 @@ def create_session():
 
 @app.route('/api/sessions', methods=['GET'])
 def get_sessions():
-    """Get all smoke sessions (excluding hidden ones)"""
+    """Get all smoke sessions. Use ?include_hidden=true to include hidden ones."""
     try:
+        include_hidden = request.args.get('include_hidden', 'false').lower() == 'true'
         # Get hidden sessions first
         hidden_sessions = get_hidden_sessions_list()
-        
+
         query = f'''
 from(bucket: "{INFLUX_BUCKET}")
   |> range(start: -365d)
@@ -104,7 +105,7 @@ from(bucket: "{INFLUX_BUCKET}")
         '''
 
         tables = query_api.query(query, org=INFLUX_ORG)
-        
+
         all_data = []
         for table in tables:
             for record in table.records:
@@ -118,11 +119,11 @@ from(bucket: "{INFLUX_BUCKET}")
                     'value': record.get_value(),
                 })
 
-        # Process sessions and filter out hidden ones
-        sessions = process_sessions(all_data, hidden_sessions)
-        
+        # Process sessions
+        sessions = process_sessions(all_data, hidden_sessions, include_hidden)
+
         return jsonify({'sessions': sessions})
-    
+
     except Exception as e:
         print(f"Error fetching sessions: {e}")
         return jsonify({'error': str(e)}), 500
@@ -238,6 +239,72 @@ def unhide_all_sessions():
         print(f"Error unhiding sessions: {e}")
         return jsonify({'error': str(e)}), 500
     
+
+@app.route('/api/sessions/<session_id>/setpoints', methods=['GET'])
+def get_session_setpoints(session_id):
+    """Get temperature setpoint history for a session"""
+    try:
+        start_time = request.args.get('start')
+        end_time = request.args.get('end')
+
+        if not start_time or not end_time:
+            return jsonify({'error': 'start and end times required'}), 400
+
+        query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: {start_time}, stop: {end_time})
+  |> filter(fn: (r) => r["entity_id"] == "number.esp32smoker_smoker_set_temperature")
+  |> filter(fn: (r) => r["_field"] == "value")
+  |> sort(columns: ["_time"])
+        '''
+
+        tables = query_api.query(query, org=INFLUX_ORG)
+
+        raw_points = []
+        for table in tables:
+            for record in table.records:
+                raw_points.append({
+                    'time': record.get_time().isoformat(),
+                    'value': round(record.get_value(), 1),
+                })
+
+        # Deduplicate: only keep points where the value changed
+        setpoints = []
+        for point in raw_points:
+            if not setpoints or point['value'] != setpoints[-1]['value']:
+                setpoints.append(point)
+
+        return jsonify({'setpoints': setpoints})
+
+    except Exception as e:
+        print(f"Error fetching setpoints: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/sessions/<session_id>/restore', methods=['POST'])
+def restore_session(session_id):
+    """Unhide a single session"""
+    try:
+        hidden_sessions = get_hidden_sessions_list()
+
+        if session_id not in hidden_sessions:
+            return jsonify({'success': True, 'message': 'Session is not hidden'})
+
+        hidden_sessions.remove(session_id)
+
+        point = Point("hidden_sessions") \
+            .tag("app", "smoker_tracker") \
+            .field("session_ids", ','.join(hidden_sessions)) \
+            .time(datetime.utcnow())
+
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+
+        return jsonify({'success': True, 'message': 'Session restored'})
+
+    except Exception as e:
+        print(f"Error restoring session: {e}")
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/sessions/<session_id>/pauses', methods=['GET'])
 def get_session_pauses(session_id):
@@ -364,13 +431,13 @@ from(bucket: "{INFLUX_BUCKET}")
         return []
 
 
-def process_sessions(all_data, hidden_sessions):
-    """Process raw data into sessions and filter out hidden ones"""
+def process_sessions(all_data, hidden_sessions, include_hidden=False):
+    """Process raw data into sessions, optionally including hidden ones."""
     session_map = {}
 
     for point in all_data:
         session_id = point.get('sessionId') or point.get('value')
-        
+
         if not session_id or session_id == '':
             continue
 
@@ -385,7 +452,7 @@ def process_sessions(all_data, hidden_sessions):
             }
 
         session = session_map[session_id]
-        
+
         # Update metadata
         if point.get('entityId') == 'smoke_session_name' and point.get('value'):
             session['name'] = point['value']
@@ -393,7 +460,7 @@ def process_sessions(all_data, hidden_sessions):
             session['meatType'] = point['value']
         if point.get('entityId') == 'smoke_session_notes' and point.get('value'):
             session['notes'] = point['value']
-        
+
         # Update time range
         point_time = point['time']
         if point_time < session['startTime']:
@@ -404,10 +471,12 @@ def process_sessions(all_data, hidden_sessions):
     # Convert to list, filter hidden sessions, and set defaults
     sessions = []
     for session in session_map.values():
-        # Skip hidden sessions
-        if session['id'] in hidden_sessions:
+        is_hidden = session['id'] in hidden_sessions
+
+        # Skip hidden sessions unless include_hidden is set
+        if is_hidden and not include_hidden:
             continue
-            
+
         sessions.append({
             'id': session['id'],
             'name': session['name'] or 'Unnamed Session',
@@ -415,11 +484,12 @@ def process_sessions(all_data, hidden_sessions):
             'notes': session['notes'] or '',
             'startTime': session['startTime'],
             'endTime': session['endTime'],
+            'hidden': is_hidden,
         })
 
     # Sort by start time (newest first)
     sessions.sort(key=lambda x: x['startTime'], reverse=True)
-    
+
     return sessions
 
 

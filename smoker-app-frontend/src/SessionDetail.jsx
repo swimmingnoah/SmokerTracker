@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import {
 	LineChart,
@@ -38,6 +38,17 @@ function SessionDetail() {
 	const [isPaused, setIsPaused] = useState(false);
 	const [pauseLoading, setPauseLoading] = useState(false);
 
+	// Ref for incremental fetch — tracks last data point timestamp
+	const lastFetchedTimeRef = useRef(null);
+	const intervalRef = useRef(null);
+
+	const isActiveSession = () => {
+		if (!session) return false;
+		const sessionEndTime = new Date(session.endTime);
+		const sessionStartTime = new Date(session.startTime);
+		return Math.abs(sessionEndTime - sessionStartTime) < 60000;
+	};
+
 	// Fetch session from API if not passed via router state
 	useEffect(() => {
 		if (session) return;
@@ -58,32 +69,47 @@ function SessionDetail() {
 			.catch(() => navigate("/"));
 	}, []);
 
+	// Initial data fetch
 	useEffect(() => {
 		if (!session) return;
-		fetchTemperatureData();
+		lastFetchedTimeRef.current = null; // Reset for full fetch
+		fetchTemperatureData(true);
 		fetchSetpoints();
 		fetchPauses();
 	}, [session]);
 
-	// Also refresh every 30 seconds
+	// Smart polling — only for active sessions
 	useEffect(() => {
 		if (!session) return;
-		const interval = setInterval(() => {
-			fetchTemperatureData();
+		if (!isActiveSession()) return; // No polling for completed sessions
+
+		intervalRef.current = setInterval(() => {
+			fetchTemperatureData(false); // Incremental fetch
 			fetchSetpoints();
 			fetchPauses();
 		}, 30000);
 
-		return () => clearInterval(interval);
+		return () => {
+			if (intervalRef.current) clearInterval(intervalRef.current);
+		};
 	}, [session]);
 
 	const fetchSetpoints = async () => {
 		try {
 			setLoadingSetpoints(true);
 
+			const sessionEndTime = new Date(session.endTime);
+			const sessionStartTime = new Date(session.startTime);
+			const isActive = Math.abs(sessionEndTime - sessionStartTime) < 60000;
+
+			const startTime = sessionStartTime.toISOString();
+			const endTime = isActive
+				? new Date().toISOString()
+				: sessionEndTime.toISOString();
+
 			const encodedSessionId = encodeURIComponent(session.id);
 			const response = await fetch(
-				`${CONFIG.apiUrl}/sessions/${encodedSessionId}/setpoints`
+				`${CONFIG.apiUrl}/sessions/${encodedSessionId}/setpoints?start=${encodeURIComponent(startTime)}&end=${encodeURIComponent(endTime)}`
 			);
 
 			if (!response.ok) {
@@ -156,36 +182,34 @@ function SessionDetail() {
 
 			const data = await response.json();
 
-			// Update local session object
-			session.endTime = data.endTime;
+			// Update local session object and stop polling
+			setSession({ ...session, endTime: data.endTime });
+			if (intervalRef.current) clearInterval(intervalRef.current);
 
 			alert("Session ended successfully!");
-
-			// Optionally go back to session list
-			// onBack();
 		} catch (err) {
 			console.error("Error ending session:", err);
 			alert("Failed to end session: " + err.message);
 		}
 	};
 
-	const fetchTemperatureData = async () => {
+	const fetchTemperatureData = async (isFullFetch) => {
 		try {
-			setLoading(true);
-			setError(null);
+			if (isFullFetch) {
+				setLoading(true);
+				setError(null);
+			}
 
-			const sessionEndTime = new Date(session.endTime);
-			const sessionStartTime = new Date(session.startTime);
-			const isActiveSession =
-				Math.abs(sessionEndTime - sessionStartTime) < 60000;
+			const isActive = isActiveSession();
 
-			const endTime = isActiveSession
+			const endTime = isActive
 				? new Date().toISOString()
 				: new Date(session.endTime).toISOString();
 
-			const startTime = new Date(session.startTime).toISOString();
-
-			console.log("Fetching temps from", startTime, "to", endTime);
+			// Incremental: use last fetched time as start, otherwise use session start
+			const startTime = (!isFullFetch && lastFetchedTimeRef.current)
+				? lastFetchedTimeRef.current
+				: new Date(session.startTime).toISOString();
 
 			const encodedSessionId = encodeURIComponent(session.id);
 			const url = `${
@@ -205,14 +229,42 @@ function SessionDetail() {
 
 			const result = await response.json();
 
-			const data = result.data.map((item) => ({
-				...item,
-				time: new Date(item.time),
-			}));
+			const newData = result.data.map((item) => {
+				// Clamp negative values to 0
+				const clamped = { time: new Date(item.time) };
+				for (const key of Object.keys(item)) {
+					if (key === "time") continue;
+					clamped[key] = item[key] < 0 ? 0 : item[key];
+				}
+				return clamped;
+			});
 
-			console.log("Temperature data points:", data.length);
-			setTemperatureData(data);
-			calculateStats(data);
+			// Update last fetched time to the latest data point
+			if (newData.length > 0) {
+				lastFetchedTimeRef.current = newData[newData.length - 1].time.toISOString();
+			}
+
+			if (isFullFetch || !lastFetchedTimeRef.current) {
+				// Full fetch — replace all data
+				setTemperatureData(newData);
+				calculateStats(newData);
+			} else {
+				// Incremental — append new data points
+				setTemperatureData((prev) => {
+					const combined = [...prev, ...newData];
+					// Deduplicate by time (in case of overlap at the boundary)
+					const seen = new Set();
+					const deduped = combined.filter((d) => {
+						const key = d.time.getTime();
+						if (seen.has(key)) return false;
+						seen.add(key);
+						return true;
+					});
+					calculateStats(deduped);
+					return deduped;
+				});
+			}
+
 			setLoading(false);
 		} catch (err) {
 			console.error("Error fetching temperature data:", err);
@@ -433,6 +485,12 @@ function SessionDetail() {
 		rtd: "RTD",
 	};
 
+	// Get current (latest) temperatures from the data
+	const getCurrentTemps = () => {
+		if (temperatureData.length === 0) return null;
+		return temperatureData[temperatureData.length - 1];
+	};
+
 	if (loadingSession) {
 		return (
 			<div className="flex items-center justify-center py-20">
@@ -443,6 +501,8 @@ function SessionDetail() {
 			</div>
 		);
 	}
+
+	const currentTemps = getCurrentTemps();
 
 	return (
 		<div>
@@ -562,7 +622,7 @@ function SessionDetail() {
 						</div>
 					)}
 
-					<span>⏱️ Duration: {calculateDuration()}</span>
+					<span>Duration: {calculateDuration()}</span>
 				</div>
 
 				<div className="grid md:grid-cols-2 gap-4 mb-4">
@@ -593,7 +653,7 @@ function SessionDetail() {
 								onClick={() => setIsEditingNotes(true)}
 								className="text-sm text-orange-600 hover:text-orange-700 font-medium"
 							>
-								✏️ Edit
+								Edit
 							</button>
 						)}
 					</div>
@@ -632,10 +692,46 @@ function SessionDetail() {
 				</div>
 			</div>
 
+			{/* Current Temperatures Card */}
+			{currentTemps && (
+				<div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+					<div className="flex justify-between items-center mb-4">
+						<h3 className="text-xl font-bold text-gray-800">
+							{isActiveSession() ? "Current Temperatures" : "Final Temperatures"}
+						</h3>
+						<span className="text-xs text-gray-400">
+							{formatTime(currentTemps.time)}
+						</span>
+					</div>
+					<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+						{Object.entries(probeColors).map(([probe, color]) => {
+							const value = currentTemps[probe];
+							return (
+								<div
+									key={probe}
+									className="rounded-lg p-4 text-center"
+									style={{ backgroundColor: `${color}10`, borderLeft: `4px solid ${color}` }}
+								>
+									<p className="text-sm font-medium text-gray-600 mb-1">
+										{probeNames[probe]}
+									</p>
+									<p
+										className="text-3xl font-bold"
+										style={{ color }}
+									>
+										{value !== undefined ? `${value}°F` : "—"}
+									</p>
+								</div>
+							);
+						})}
+					</div>
+				</div>
+			)}
+
 			{/* Setpoint History Section */}
 			<div className="mt-4 p-4 bg-blue-50 rounded-lg">
 				<h3 className="text-sm font-medium text-gray-700 mb-3">
-					🎯 Temperature Setpoint History
+					Temperature Setpoint History
 				</h3>
 
 				{loadingSetpoints ? (
@@ -702,7 +798,7 @@ function SessionDetail() {
 		{pauses.length > 0 && (
 			<div className="mt-4 p-4 bg-yellow-50 rounded-lg">
 				<h3 className="text-sm font-medium text-gray-700 mb-3">
-					⏸ Pause History
+					Pause History
 				</h3>
 				<div className="space-y-2">
 					{pauses.map((event, index) => {
@@ -726,7 +822,7 @@ function SessionDetail() {
 							>
 								<div>
 									<span className={`text-sm font-semibold ${isPauseEvent ? "text-yellow-700" : "text-green-700"}`}>
-										{isPauseEvent ? "⏸ Paused" : "▶ Resumed"}
+										{isPauseEvent ? "Paused" : "Resumed"}
 									</span>
 									<div className="text-xs text-gray-500 mt-0.5">
 										{formatDate(event.time)}
@@ -770,7 +866,7 @@ function SessionDetail() {
 									textAnchor="end"
 									height={80}
 								/>
-								<YAxis />
+								<YAxis domain={[0, 'auto']} />
 								<Tooltip
 									labelFormatter={(value) => formatTime(new Date(value))}
 									formatter={(value) => [`${value}°F`]}
