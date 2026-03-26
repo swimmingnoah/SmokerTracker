@@ -156,6 +156,42 @@ def delete_meat_type(meat_type):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/meat-types/<meat_type>', methods=['PUT'])
+def rename_meat_type(meat_type):
+    """Rename a meat type"""
+    try:
+        data = request.get_json()
+        new_name = data.get('name', '').strip()
+
+        if not new_name:
+            return jsonify({'error': 'name required'}), 400
+
+        meat_types = get_meat_types_list()
+        meat_type = meat_type.strip()
+
+        if meat_type not in meat_types:
+            return jsonify({'error': 'Meat type not found'}), 404
+
+        if new_name in meat_types:
+            return jsonify({'error': 'A meat type with that name already exists'}), 400
+
+        idx = meat_types.index(meat_type)
+        meat_types[idx] = new_name
+
+        point = Point("meat_type_list") \
+            .tag("app", "smoker_tracker") \
+            .field("types", ','.join(meat_types)) \
+            .time(datetime.utcnow())
+
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+
+        return jsonify({'success': True, 'message': 'Meat type renamed'})
+
+    except Exception as e:
+        print(f"Error renaming meat type: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/sessions', methods=['GET'])
 def get_sessions():
     """Get all smoke sessions. Use ?include_hidden=true to include hidden ones."""
