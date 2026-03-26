@@ -27,6 +27,7 @@ def health():
     return jsonify({'status': 'ok', 'message': 'Smoker Tracker API is running'})
 
 
+
 @app.route('/api/sessions', methods=['POST'])
 def create_session():
     """Create a new smoke session"""
@@ -374,7 +375,7 @@ def get_session_setpoints(session_id):
         query = f'''
 from(bucket: "{INFLUX_BUCKET}")
   |> range(start: {start_time}, stop: {end_time})
-  |> filter(fn: (r) => r["entity_id"] == "number.esp32smoker_smoker_set_temperature")
+  |> filter(fn: (r) => r["entity_id"] == "esp32smoker_smoker_set_temperature")
   |> filter(fn: (r) => r["_field"] == "value" or r["_field"] == "state")
   |> sort(columns: ["_time"])
         '''
