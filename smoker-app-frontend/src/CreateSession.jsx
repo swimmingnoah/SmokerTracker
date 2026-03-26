@@ -8,34 +8,26 @@ function CreateSession() {
 	const [meatType, setMeatType] = useState("");
 	const [notes, setNotes] = useState("");
 	const [creating, setCreating] = useState(false);
-	const [meatTypeOptions, setMeatTypeOptions] = useState(["Custom"]);
-	const [showCustomMeatType, setShowCustomMeatType] = useState(true);
+	const [meatTypeOptions, setMeatTypeOptions] = useState([]);
 
 	useEffect(() => {
 		fetchMeatTypes();
 	}, []);
 
-const fetchMeatTypes = async () => {
-	try {
-		const response = await fetch(`${CONFIG.apiUrl}/meat-types`);
-		if (response.ok) {
-			const data = await response.json();
-			setMeatTypeOptions([...data.meatTypes, "Custom"]);
-
-			if (data.meatTypes.length === 0) {
-				setShowCustomMeatType(true);
-			} else {
-				// Default to the first available meat type
-				setMeatType(data.meatTypes[0]);
-				setShowCustomMeatType(false);
+	const fetchMeatTypes = async () => {
+		try {
+			const response = await fetch(`${CONFIG.apiUrl}/meat-types`);
+			if (response.ok) {
+				const data = await response.json();
+				setMeatTypeOptions(data.meatTypes);
+				if (data.meatTypes.length > 0) {
+					setMeatType(data.meatTypes[0]);
+				}
 			}
+		} catch (err) {
+			console.error("Error fetching meat types:", err);
 		}
-	} catch (err) {
-		console.error("Error fetching meat types:", err);
-		setMeatTypeOptions(["Custom"]);
-		setShowCustomMeatType(true); // Show custom input if fetch fails
-	}
-};
+	};
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
@@ -107,23 +99,11 @@ const fetchMeatTypes = async () => {
 						<label className="block text-sm font-medium text-gray-700 mb-2">
 							Meat Type
 						</label>
-						<div className="flex gap-2">
+						{meatTypeOptions.length > 0 ? (
 							<select
-								value={
-									meatTypeOptions.includes(meatType) && meatType !== ""
-										? meatType
-										: "Custom"
-								}
-								onChange={(e) => {
-									if (e.target.value === "Custom") {
-										setShowCustomMeatType(true);
-										setMeatType("");
-									} else {
-										setShowCustomMeatType(false);
-										setMeatType(e.target.value);
-									}
-								}}
-								className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+								value={meatType}
+								onChange={(e) => setMeatType(e.target.value)}
+								className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
 							>
 								{meatTypeOptions.map((option) => (
 									<option key={option} value={option}>
@@ -131,17 +111,18 @@ const fetchMeatTypes = async () => {
 									</option>
 								))}
 							</select>
-
-							{showCustomMeatType && (
-								<input
-									type="text"
-									value={meatType}
-									onChange={(e) => setMeatType(e.target.value)}
-									className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-									placeholder="Enter custom meat type"
-								/>
-							)}
-						</div>
+						) : (
+							<p className="text-sm text-gray-500 italic">
+								No meat types configured yet.
+							</p>
+						)}
+						<button
+							type="button"
+							onClick={() => navigate("/meat-types")}
+							className="mt-2 text-sm text-orange-600 hover:text-orange-700 font-medium"
+						>
+							Manage Meat Types
+						</button>
 					</div>
 
 					<div>

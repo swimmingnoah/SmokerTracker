@@ -79,7 +79,7 @@ def create_session():
                 'meatType': meat_type,
                 'notes': notes,
                 'startTime': now_iso,
-                'endTime': now_iso,
+                'endTime': None,
             }
         })
 
@@ -223,8 +223,23 @@ from(bucket: "{INFLUX_BUCKET}")
                     'value': record.get_value(),
                 })
 
+        # Fetch session end events
+        end_query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -365d)
+  |> filter(fn: (r) => r["_measurement"] == "session_end")
+  |> filter(fn: (r) => r["_field"] == "value")
+        '''
+        end_tables = query_api.query(end_query, org=INFLUX_ORG)
+        ended_sessions = {}
+        for table in end_tables:
+            for record in table.records:
+                sid = record.values.get('session_id')
+                if sid:
+                    ended_sessions[sid] = record.get_time().isoformat()
+
         # Process sessions
-        sessions = process_sessions(all_data, hidden_sessions, include_hidden)
+        sessions = process_sessions(all_data, hidden_sessions, include_hidden, ended_sessions)
 
         return jsonify({'sessions': sessions})
 
@@ -487,6 +502,26 @@ def resume_session(session_id):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/sessions/<session_id>/end', methods=['POST'])
+def end_session(session_id):
+    """End a smoke session by recording an end-time marker"""
+    try:
+        now = datetime.utcnow()
+
+        point = Point("session_end") \
+            .tag("session_id", session_id) \
+            .field("value", 1) \
+            .time(now)
+
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+
+        return jsonify({'success': True, 'endTime': now.isoformat() + 'Z'})
+
+    except Exception as e:
+        print(f"Error ending session: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/sessions/<session_id>/notes', methods=['PUT'])
 def update_session_notes(session_id):
     """Update notes for a session via Home Assistant API"""
@@ -570,8 +605,10 @@ from(bucket: "{INFLUX_BUCKET}")
         return []
 
 
-def process_sessions(all_data, hidden_sessions, include_hidden=False):
+def process_sessions(all_data, hidden_sessions, include_hidden=False, ended_sessions=None):
     """Process raw data into sessions, optionally including hidden ones."""
+    if ended_sessions is None:
+        ended_sessions = {}
     session_map = {}
 
     for point in all_data:
@@ -616,13 +653,15 @@ def process_sessions(all_data, hidden_sessions, include_hidden=False):
         if is_hidden and not include_hidden:
             continue
 
+        end_time = ended_sessions.get(session['id'], None)
+
         sessions.append({
             'id': session['id'],
             'name': session['name'] or 'Unnamed Session',
             'meatType': session['meatType'] or 'N/A',
             'notes': session['notes'] or '',
             'startTime': session['startTime'],
-            'endTime': session['endTime'],
+            'endTime': end_time,
             'hidden': is_hidden,
         })
 
