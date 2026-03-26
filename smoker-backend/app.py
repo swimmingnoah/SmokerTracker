@@ -27,6 +27,35 @@ def health():
     return jsonify({'status': 'ok', 'message': 'Smoker Tracker API is running'})
 
 
+@app.route('/api/debug/setpoint-search', methods=['GET'])
+def debug_setpoint_search():
+    """Temporary debug endpoint to find setpoint entity in InfluxDB"""
+    try:
+        query = f'''
+import "strings"
+
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -30d)
+  |> filter(fn: (r) => strings.containsStr(v: r["entity_id"], substr: "set_temperature") or strings.containsStr(v: r["entity_id"], substr: "setpoint") or strings.containsStr(v: r["entity_id"], substr: "set_temp"))
+  |> limit(n: 5)
+        '''
+        tables = query_api.query(query, org=INFLUX_ORG)
+        results = []
+        for table in tables:
+            for record in table.records:
+                results.append({
+                    'entity_id': record.values.get('entity_id'),
+                    'domain': record.values.get('domain'),
+                    'measurement': record.get_measurement(),
+                    'field': record.get_field(),
+                    'value': str(record.get_value()),
+                    'time': record.get_time().isoformat(),
+                })
+        return jsonify({'results': results})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/sessions', methods=['POST'])
 def create_session():
     """Create a new smoke session"""
