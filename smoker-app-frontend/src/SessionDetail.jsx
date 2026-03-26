@@ -45,9 +45,7 @@ function SessionDetail() {
 
 	const isActiveSession = () => {
 		if (!session) return false;
-		const sessionEndTime = new Date(session.endTime);
-		const sessionStartTime = new Date(session.startTime);
-		return Math.abs(sessionEndTime - sessionStartTime) < 60000;
+		return session.endTime === null;
 	};
 
 	// Fetch session from API if not passed via router state
@@ -111,14 +109,12 @@ function SessionDetail() {
 		try {
 			setLoadingSetpoints(true);
 
-			const sessionEndTime = new Date(session.endTime);
-			const sessionStartTime = new Date(session.startTime);
-			const isActive = Math.abs(sessionEndTime - sessionStartTime) < 60000;
+			const isActive = session.endTime === null;
 
-			const startTime = sessionStartTime.toISOString();
+			const startTime = new Date(session.startTime).toISOString();
 			const endTime = isActive
 				? new Date().toISOString()
-				: sessionEndTime.toISOString();
+				: new Date(session.endTime).toISOString();
 
 			const encodedSessionId = encodeURIComponent(session.id);
 			const response = await fetch(
@@ -458,7 +454,7 @@ function SessionDetail() {
 	const calculateDuration = () => {
 		if (!session.startTime) return "N/A";
 		const startTime = new Date(session.startTime);
-		const endTime = session.endTime ? new Date(session.endTime) : new Date();
+		const endTime = session.endTime !== null ? new Date(session.endTime) : new Date();
 		const netMs = endTime - startTime - calculatePausedMs();
 		const hours = Math.floor(netMs / (1000 * 60 * 60));
 		const minutes = Math.floor((netMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -583,7 +579,7 @@ function SessionDetail() {
 								{pauseLoading ? "..." : isPaused ? "▶ Resume" : "⏸ Pause"}
 							</button>
 							<button
-								onClick={(e) => handleEndSession(e, session.id)}
+								onClick={handleEndSession}
 								className="bg-orange-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-orange-700 flex items-center gap-2"
 							>
 								End Smoke
@@ -599,32 +595,15 @@ function SessionDetail() {
 					{isEditingMeatType ? (
 						<div className="flex items-center gap-2">
 							<select
-								value={meatTypeOptions.includes(editedMeatType) ? editedMeatType : "__custom__"}
-								onChange={(e) => {
-									if (e.target.value === "__custom__") {
-										setEditedMeatType("");
-									} else {
-										setEditedMeatType(e.target.value);
-									}
-								}}
+								value={editedMeatType}
+								onChange={(e) => setEditedMeatType(e.target.value)}
 								className="px-3 py-1 border-2 border-orange-500 rounded focus:outline-none text-sm"
 								autoFocus
 							>
 								{meatTypeOptions.map((opt) => (
 									<option key={opt} value={opt}>{opt}</option>
 								))}
-								<option value="__custom__">Custom...</option>
 							</select>
-							{(!meatTypeOptions.includes(editedMeatType)) && (
-								<input
-									type="text"
-									value={editedMeatType}
-									onChange={(e) => setEditedMeatType(e.target.value)}
-									className="px-3 py-1 border-2 border-orange-500 rounded focus:outline-none text-sm"
-									placeholder="Custom type"
-									autoFocus
-								/>
-							)}
 							<button
 								onClick={handleSaveMeatType}
 								disabled={savingField === "meatType"}

@@ -90,10 +90,7 @@ function SessionList() {
 	const calculateDuration = (start, end) => {
 		if (!start) return 'N/A';
 		const startTime = new Date(start);
-		var endTime = new Date();
-		if (end !== null) {
-			endTime = new Date(end);
-		}
+		const endTime = end !== null ? new Date(end) : new Date();
 		const diffMs = endTime - startTime;
 		const hours = Math.floor(diffMs / (1000 * 60 * 60));
 		const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
