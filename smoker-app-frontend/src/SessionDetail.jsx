@@ -37,6 +37,7 @@ function SessionDetail() {
 	const [pauses, setPauses] = useState([]);
 	const [isPaused, setIsPaused] = useState(false);
 	const [pauseLoading, setPauseLoading] = useState(false);
+	const [meatTypeOptions, setMeatTypeOptions] = useState([]);
 
 	// Ref for incremental fetch — tracks last data point timestamp
 	const lastFetchedTimeRef = useRef(null);
@@ -76,7 +77,19 @@ function SessionDetail() {
 		fetchTemperatureData(true);
 		fetchSetpoints();
 		fetchPauses();
+		fetchMeatTypeOptions();
 	}, [session]);
+
+	const fetchMeatTypeOptions = async () => {
+		try {
+			const response = await fetch(`${CONFIG.apiUrl}/meat-types`);
+			if (!response.ok) return;
+			const data = await response.json();
+			setMeatTypeOptions(data.meatTypes);
+		} catch (err) {
+			console.error("Error fetching meat types:", err);
+		}
+	};
 
 	// Smart polling — only for active sessions
 	useEffect(() => {
@@ -585,14 +598,33 @@ function SessionDetail() {
 					{/* Editable Meat Type */}
 					{isEditingMeatType ? (
 						<div className="flex items-center gap-2">
-							<input
-								type="text"
-								value={editedMeatType}
-								onChange={(e) => setEditedMeatType(e.target.value)}
-								className="px-3 py-1 border-2 border-orange-500 rounded focus:outline-none"
-								placeholder="Meat type"
+							<select
+								value={meatTypeOptions.includes(editedMeatType) ? editedMeatType : "__custom__"}
+								onChange={(e) => {
+									if (e.target.value === "__custom__") {
+										setEditedMeatType("");
+									} else {
+										setEditedMeatType(e.target.value);
+									}
+								}}
+								className="px-3 py-1 border-2 border-orange-500 rounded focus:outline-none text-sm"
 								autoFocus
-							/>
+							>
+								{meatTypeOptions.map((opt) => (
+									<option key={opt} value={opt}>{opt}</option>
+								))}
+								<option value="__custom__">Custom...</option>
+							</select>
+							{(!meatTypeOptions.includes(editedMeatType)) && (
+								<input
+									type="text"
+									value={editedMeatType}
+									onChange={(e) => setEditedMeatType(e.target.value)}
+									className="px-3 py-1 border-2 border-orange-500 rounded focus:outline-none text-sm"
+									placeholder="Custom type"
+									autoFocus
+								/>
+							)}
 							<button
 								onClick={handleSaveMeatType}
 								disabled={savingField === "meatType"}
