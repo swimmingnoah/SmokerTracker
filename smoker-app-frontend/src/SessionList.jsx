@@ -8,9 +8,12 @@ function SessionList() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
 	const [showHidden, setShowHidden] = useState(false);
+	const [meatTypeFilter, setMeatTypeFilter] = useState('All');
+	const [meatTypes, setMeatTypes] = useState([]);
 
 	useEffect(() => {
 		fetchSessions();
+		fetchMeatTypes();
 	}, [showHidden]);
 
 	const fetchSessions = async () => {
@@ -28,6 +31,17 @@ function SessionList() {
 		} catch (err) {
 			setError('Failed to load sessions: ' + err.message);
 			setLoading(false);
+		}
+	};
+
+	const fetchMeatTypes = async () => {
+		try {
+			const response = await fetch(`${CONFIG.apiUrl}/meat-types`);
+			if (!response.ok) return;
+			const data = await response.json();
+			setMeatTypes(data.meatTypes);
+		} catch (err) {
+			console.error('Error fetching meat types:', err);
 		}
 	};
 
@@ -117,45 +131,107 @@ function SessionList() {
 		);
 	}
 
-	const visibleSessions = sessions.filter((s) => !s.hidden);
+	const allVisible = sessions.filter((s) => !s.hidden);
 	const hiddenSessions = sessions.filter((s) => s.hidden);
+
+	// Apply meat type filter
+	const visibleSessions = meatTypeFilter === 'All'
+		? allVisible
+		: allVisible.filter((s) => s.meatType === meatTypeFilter);
 
 	return (
 		<div>
 			<div className="flex justify-between items-center mb-6">
 				<h2 className="text-2xl font-bold text-gray-800">Smoke Sessions</h2>
-				<button
-					onClick={() => navigate('/sessions/new')}
-					className="bg-orange-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-orange-700 flex items-center gap-2"
-				>
-					<svg
-						className="w-5 h-5"
-						fill="none"
-						stroke="currentColor"
-						viewBox="0 0 24 24"
+				<div className="flex items-center gap-3">
+					<button
+						onClick={() => navigate('/meat-types')}
+						className="text-gray-500 hover:text-orange-600 transition-colors"
+						title="Manage meat types"
 					>
-						<path
-							strokeLinecap="round"
-							strokeLinejoin="round"
-							strokeWidth={2}
-							d="M12 4v16m8-8H4"
-						/>
-					</svg>
-					Start New Session
-				</button>
+						<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+						</svg>
+					</button>
+					<button
+						onClick={() => navigate('/sessions/new')}
+						className="bg-orange-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-orange-700 flex items-center gap-2"
+					>
+						<svg
+							className="w-5 h-5"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M12 4v16m8-8H4"
+							/>
+						</svg>
+						Start New Session
+					</button>
+				</div>
 			</div>
+
+			{/* Meat Type Filter */}
+			{meatTypes.length > 0 && (
+				<div className="flex flex-wrap gap-2 mb-6">
+					<button
+						onClick={() => setMeatTypeFilter('All')}
+						className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+							meatTypeFilter === 'All'
+								? 'bg-orange-600 text-white'
+								: 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+						}`}
+					>
+						All
+					</button>
+					{meatTypes.map((type) => (
+						<button
+							key={type}
+							onClick={() => setMeatTypeFilter(type === meatTypeFilter ? 'All' : type)}
+							className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+								meatTypeFilter === type
+									? 'bg-orange-600 text-white'
+									: 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+							}`}
+						>
+							{type}
+						</button>
+					))}
+				</div>
+			)}
 
 			{visibleSessions.length === 0 && !showHidden ? (
 				<div className="bg-white rounded-lg shadow p-8 text-center">
-					<p className="text-gray-500 mb-4">
-						No smoke sessions yet. Start your first smoke!
-					</p>
-					<button
-						onClick={() => navigate('/sessions/new')}
-						className="bg-orange-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-orange-700"
-					>
-						Create First Session
-					</button>
+					{meatTypeFilter !== 'All' ? (
+						<>
+							<p className="text-gray-500 mb-4">
+								No sessions found for "{meatTypeFilter}".
+							</p>
+							<button
+								onClick={() => setMeatTypeFilter('All')}
+								className="text-orange-600 hover:text-orange-700 font-medium"
+							>
+								Clear filter
+							</button>
+						</>
+					) : (
+						<>
+							<p className="text-gray-500 mb-4">
+								No smoke sessions yet. Start your first smoke!
+							</p>
+							<button
+								onClick={() => navigate('/sessions/new')}
+								className="bg-orange-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-orange-700"
+							>
+								Create First Session
+							</button>
+						</>
+					)}
 				</div>
 			) : (
 				<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import SessionList from './SessionList';
 import SessionDetail from './SessionDetail';
 import CreateSession from './CreateSession';
+import MeatTypes from './MeatTypes';
 import './App.css';
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
           <Route path="/" element={<SessionList />} />
           <Route path="/sessions/new" element={<CreateSession />} />
           <Route path="/sessions/:id" element={<SessionDetail />} />
+          <Route path="/meat-types" element={<MeatTypes />} />
         </Routes>
       </div>
     </div>

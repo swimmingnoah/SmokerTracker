@@ -90,35 +90,106 @@ def create_session():
 
 @app.route('/api/meat-types', methods=['GET'])
 def get_meat_types():
-    """Get distinct meat types from non-hidden sessions"""
+    """Get the saved list of meat types"""
     try:
-        hidden_sessions = get_hidden_sessions_list()
-
-        query = f'''
-from(bucket: "{INFLUX_BUCKET}")
-  |> range(start: -365d)
-  |> filter(fn: (r) => r["domain"] == "input_text")
-  |> filter(fn: (r) => r["entity_id"] == "meat_type")
-  |> filter(fn: (r) => r["_field"] == "state")
-        '''
-
-        tables = query_api.query(query, org=INFLUX_ORG)
-
-        meat_types = set()
-        for table in tables:
-            for record in table.records:
-                session_id = record.values.get('current_session_id')
-                if session_id and session_id in hidden_sessions:
-                    continue
-                value = record.get_value()
-                if value and value.strip() and value != 'N/A':
-                    meat_types.add(value.strip())
-
+        meat_types = get_meat_types_list()
         return jsonify({'meatTypes': sorted(meat_types)})
-
     except Exception as e:
         print(f"Error fetching meat types: {e}")
         return jsonify({'meatTypes': []})
+
+
+@app.route('/api/meat-types', methods=['POST'])
+def add_meat_type():
+    """Add a new meat type to the list"""
+    try:
+        data = request.get_json()
+        name = data.get('name', '').strip()
+
+        if not name:
+            return jsonify({'error': 'name required'}), 400
+
+        meat_types = get_meat_types_list()
+
+        if name in meat_types:
+            return jsonify({'success': True, 'message': 'Meat type already exists'})
+
+        meat_types.append(name)
+
+        point = Point("meat_type_list") \
+            .tag("app", "smoker_tracker") \
+            .field("types", ','.join(meat_types)) \
+            .time(datetime.utcnow())
+
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+
+        return jsonify({'success': True, 'message': 'Meat type added'})
+
+    except Exception as e:
+        print(f"Error adding meat type: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/meat-types/<meat_type>', methods=['DELETE'])
+def delete_meat_type(meat_type):
+    """Remove a meat type from the list"""
+    try:
+        meat_types = get_meat_types_list()
+        meat_type = meat_type.strip()
+
+        if meat_type not in meat_types:
+            return jsonify({'success': True, 'message': 'Meat type not found'})
+
+        meat_types.remove(meat_type)
+
+        point = Point("meat_type_list") \
+            .tag("app", "smoker_tracker") \
+            .field("types", ','.join(meat_types)) \
+            .time(datetime.utcnow())
+
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+
+        return jsonify({'success': True, 'message': 'Meat type removed'})
+
+    except Exception as e:
+        print(f"Error deleting meat type: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/meat-types/<meat_type>', methods=['PUT'])
+def rename_meat_type(meat_type):
+    """Rename a meat type"""
+    try:
+        data = request.get_json()
+        new_name = data.get('name', '').strip()
+
+        if not new_name:
+            return jsonify({'error': 'name required'}), 400
+
+        meat_types = get_meat_types_list()
+        meat_type = meat_type.strip()
+
+        if meat_type not in meat_types:
+            return jsonify({'error': 'Meat type not found'}), 404
+
+        if new_name in meat_types:
+            return jsonify({'error': 'A meat type with that name already exists'}), 400
+
+        idx = meat_types.index(meat_type)
+        meat_types[idx] = new_name
+
+        point = Point("meat_type_list") \
+            .tag("app", "smoker_tracker") \
+            .field("types", ','.join(meat_types)) \
+            .time(datetime.utcnow())
+
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+
+        return jsonify({'success': True, 'message': 'Meat type renamed'})
+
+    except Exception as e:
+        print(f"Error renaming meat type: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/sessions', methods=['GET'])
@@ -470,6 +541,32 @@ from(bucket: "{INFLUX_BUCKET}")
     
     except Exception as e:
         print(f"Error getting hidden sessions: {e}")
+        return []
+
+
+def get_meat_types_list():
+    """Helper function to get the saved list of meat types from InfluxDB"""
+    try:
+        query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -365d)
+  |> filter(fn: (r) => r["_measurement"] == "meat_type_list")
+  |> filter(fn: (r) => r["_field"] == "types")
+  |> last()
+        '''
+
+        tables = query_api.query(query, org=INFLUX_ORG)
+
+        for table in tables:
+            for record in table.records:
+                value = record.get_value()
+                if value and value != '':
+                    return [s.strip() for s in value.split(',') if s.strip()]
+
+        return []
+
+    except Exception as e:
+        print(f"Error getting meat types list: {e}")
         return []
 
 
