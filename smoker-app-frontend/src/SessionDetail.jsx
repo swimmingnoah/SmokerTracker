@@ -240,8 +240,8 @@ function SessionDetail() {
 			const result = await response.json();
 
 			const newData = result.data.map((item) => {
-				// Clamp negative values to 0
-				const clamped = { time: new Date(item.time) };
+				// Clamp negative values to 0; store time as ms for numeric XAxis
+				const clamped = { time: new Date(item.time).getTime() };
 				for (const key of Object.keys(item)) {
 					if (key === "time") continue;
 					clamped[key] = item[key] < 0 ? 0 : item[key];
@@ -251,7 +251,7 @@ function SessionDetail() {
 
 			// Update last fetched time to the latest data point
 			if (newData.length > 0) {
-				lastFetchedTimeRef.current = newData[newData.length - 1].time.toISOString();
+				lastFetchedTimeRef.current = new Date(newData[newData.length - 1].time).toISOString();
 			}
 
 			if (isFullFetch || !lastFetchedTimeRef.current) {
@@ -265,7 +265,7 @@ function SessionDetail() {
 					// Deduplicate by time (in case of overlap at the boundary)
 					const seen = new Set();
 					const deduped = combined.filter((d) => {
-						const key = d.time.getTime();
+						const key = d.time;
 						if (seen.has(key)) return false;
 						seen.add(key);
 						return true;
@@ -712,7 +712,7 @@ function SessionDetail() {
 							{isActiveSession() ? "Current Temperatures" : "Final Temperatures"}
 						</h3>
 						<span className="text-xs text-gray-400">
-							{formatTime(currentTemps.time)}
+							{formatTime(new Date(currentTemps.time))}
 						</span>
 					</div>
 					<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -873,54 +873,38 @@ function SessionDetail() {
 								<CartesianGrid strokeDasharray="3 3" />
 								<XAxis
 									dataKey="time"
-									tickFormatter={formatTime}
+									type="number"
+									domain={["dataMin", "dataMax"]}
+									tickFormatter={(ts) => formatTime(new Date(ts))}
 									angle={-45}
 									textAnchor="end"
 									height={80}
 								/>
 								<YAxis domain={[0, 'auto']} />
 								<Tooltip
-									labelFormatter={(value) => formatTime(new Date(value))}
+									labelFormatter={(ts) => formatTime(new Date(ts))}
 									formatter={(value) => [`${value}°F`]}
 								/>
 								<Legend />
 								{pauses.reduce((areas, event, index) => {
 									if (event.type === "pause") {
 										const resumeEvent = pauses[index + 1];
-										const pauseStart = new Date(event.time);
-										const pauseEnd = resumeEvent?.type === "resume"
-											? new Date(resumeEvent.time)
-											: new Date();
-										// Find closest data points to snap ReferenceArea to the chart's x values
-										const findClosest = (target) => {
-											if (temperatureData.length === 0) return null;
-											let closest = temperatureData[0].time;
-											let minDiff = Math.abs(target - closest);
-											for (const d of temperatureData) {
-												const diff = Math.abs(target - d.time);
-												if (diff < minDiff) {
-													minDiff = diff;
-													closest = d.time;
-												}
-											}
-											return closest;
-										};
-										const x1 = findClosest(pauseStart);
-										const x2 = findClosest(pauseEnd);
-										if (x1 && x2) {
-											areas.push(
-												<ReferenceArea
-													key={`pause-${index}`}
-													x1={x1}
-													x2={x2}
-													fill="#fbbf24"
-													fillOpacity={0.2}
-													stroke="#f59e0b"
-													strokeOpacity={0.4}
-													label={{ value: "Paused", position: "insideTop", fill: "#b45309", fontSize: 11 }}
-												/>
-											);
-										}
+										const x1 = new Date(event.time).getTime();
+										const x2 = resumeEvent?.type === "resume"
+											? new Date(resumeEvent.time).getTime()
+											: Date.now();
+										areas.push(
+											<ReferenceArea
+												key={`pause-${index}`}
+												x1={x1}
+												x2={x2}
+												fill="#fbbf24"
+												fillOpacity={0.2}
+												stroke="#f59e0b"
+												strokeOpacity={0.4}
+												label={{ value: "Paused", position: "insideTop", fill: "#b45309", fontSize: 11 }}
+											/>
+										);
 									}
 									return areas;
 								}, [])}
