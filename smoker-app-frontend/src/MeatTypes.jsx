@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CONFIG } from './config';
+import { CONFIG, apiFetch } from './config';
 
 function MeatTypes() {
 	const navigate = useNavigate();
@@ -18,7 +18,7 @@ function MeatTypes() {
 	const fetchMeatTypes = async () => {
 		try {
 			setLoading(true);
-			const response = await fetch(`${CONFIG.apiUrl}/meat-types`);
+			const response = await apiFetch(`${CONFIG.apiUrl}/meat-types`);
 			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 			const data = await response.json();
 			setMeatTypes(data.meatTypes);
@@ -36,7 +36,7 @@ function MeatTypes() {
 
 		try {
 			setAdding(true);
-			const response = await fetch(`${CONFIG.apiUrl}/meat-types`, {
+			const response = await apiFetch(`${CONFIG.apiUrl}/meat-types`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ name }),

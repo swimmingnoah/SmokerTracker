@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CONFIG } from './config';
+import { CONFIG, apiFetch } from './config';
 
 function SessionList() {
 	const navigate = useNavigate();
@@ -36,7 +36,7 @@ function SessionList() {
 
 	const fetchMeatTypes = async () => {
 		try {
-			const response = await fetch(`${CONFIG.apiUrl}/meat-types`);
+			const response = await apiFetch(`${CONFIG.apiUrl}/meat-types`);
 			if (!response.ok) return;
 			const data = await response.json();
 			setMeatTypes(data.meatTypes);
@@ -52,7 +52,7 @@ function SessionList() {
 		if (!confirmed) return;
 
 		try {
-			const response = await fetch(`${CONFIG.apiUrl}/sessions/${sessionId}`, {
+			const response = await apiFetch(`${CONFIG.apiUrl}/sessions/${sessionId}`, {
 				method: 'DELETE',
 			});
 			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -65,7 +65,7 @@ function SessionList() {
 	const handleRestore = async (e, sessionId) => {
 		e.stopPropagation();
 		try {
-			const response = await fetch(`${CONFIG.apiUrl}/sessions/${sessionId}/restore`, {
+			const response = await apiFetch(`${CONFIG.apiUrl}/sessions/${sessionId}/restore`, {
 				method: 'POST',
 			});
 			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);

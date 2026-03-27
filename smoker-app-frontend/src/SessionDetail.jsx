@@ -11,7 +11,7 @@ import {
 	ResponsiveContainer,
 	ReferenceArea,
 } from "recharts";
-import { CONFIG } from "./config";
+import { CONFIG, apiFetch } from "./config";
 
 function SessionDetail() {
 	const { id } = useParams();
@@ -52,7 +52,7 @@ function SessionDetail() {
 	// Fetch session from API if not passed via router state
 	useEffect(() => {
 		if (session) return;
-		fetch(`${CONFIG.apiUrl}/sessions`)
+		apiFetch(`${CONFIG.apiUrl}/sessions`)
 			.then((r) => r.json())
 			.then((data) => {
 				const found = data.sessions.find((s) => s.id === decodeURIComponent(id));
@@ -81,7 +81,7 @@ function SessionDetail() {
 
 	const fetchMeatTypeOptions = async () => {
 		try {
-			const response = await fetch(`${CONFIG.apiUrl}/meat-types`);
+			const response = await apiFetch(`${CONFIG.apiUrl}/meat-types`);
 			if (!response.ok) return;
 			const data = await response.json();
 			setMeatTypeOptions(data.meatTypes);

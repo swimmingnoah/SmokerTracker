@@ -1,6 +1,9 @@
 # ---- Stage 1: Build React frontend ----
 FROM node:20-alpine AS frontend-builder
 
+ARG VITE_API_KEY=""
+ENV VITE_API_KEY=${VITE_API_KEY}
+
 WORKDIR /app
 COPY smoker-app-frontend/package.json smoker-app-frontend/package-lock.json* ./
 RUN npm ci
