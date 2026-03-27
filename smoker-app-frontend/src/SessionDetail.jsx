@@ -873,39 +873,54 @@ function SessionDetail() {
 								<CartesianGrid strokeDasharray="3 3" />
 								<XAxis
 									dataKey="time"
-									type="number"
-									scale="time"
-									domain={["dataMin", "dataMax"]}
-									tickFormatter={(ts) => formatTime(new Date(ts))}
+									tickFormatter={formatTime}
 									angle={-45}
 									textAnchor="end"
 									height={80}
 								/>
 								<YAxis domain={[0, 'auto']} />
 								<Tooltip
-									labelFormatter={(ts) => formatTime(new Date(ts))}
+									labelFormatter={(value) => formatTime(new Date(value))}
 									formatter={(value) => [`${value}°F`]}
 								/>
 								<Legend />
 								{pauses.reduce((areas, event, index) => {
 									if (event.type === "pause") {
 										const resumeEvent = pauses[index + 1];
-										const x1 = new Date(event.time).getTime();
-										const x2 = resumeEvent?.type === "resume"
-											? new Date(resumeEvent.time).getTime()
-											: new Date().getTime();
-										areas.push(
-											<ReferenceArea
-												key={`pause-${index}`}
-												x1={x1}
-												x2={x2}
-												fill="#fbbf24"
-												fillOpacity={0.2}
-												stroke="#f59e0b"
-												strokeOpacity={0.4}
-												label={{ value: "Paused", position: "insideTop", fill: "#b45309", fontSize: 11 }}
-											/>
-										);
+										const pauseStart = new Date(event.time);
+										const pauseEnd = resumeEvent?.type === "resume"
+											? new Date(resumeEvent.time)
+											: new Date();
+										// Find closest data points to snap ReferenceArea to the chart's x values
+										const findClosest = (target) => {
+											if (temperatureData.length === 0) return null;
+											let closest = temperatureData[0].time;
+											let minDiff = Math.abs(target - closest);
+											for (const d of temperatureData) {
+												const diff = Math.abs(target - d.time);
+												if (diff < minDiff) {
+													minDiff = diff;
+													closest = d.time;
+												}
+											}
+											return closest;
+										};
+										const x1 = findClosest(pauseStart);
+										const x2 = findClosest(pauseEnd);
+										if (x1 && x2) {
+											areas.push(
+												<ReferenceArea
+													key={`pause-${index}`}
+													x1={x1}
+													x2={x2}
+													fill="#fbbf24"
+													fillOpacity={0.2}
+													stroke="#f59e0b"
+													strokeOpacity={0.4}
+													label={{ value: "Paused", position: "insideTop", fill: "#b45309", fontSize: 11 }}
+												/>
+											);
+										}
 									}
 									return areas;
 								}, [])}
