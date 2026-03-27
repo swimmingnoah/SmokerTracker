@@ -324,7 +324,10 @@ from(bucket: "{INFLUX_BUCKET}")
             for record in table.records:
                 sid = record.values.get('session_id')
                 if sid:
-                    ended_sessions[sid] = record.get_time().isoformat()
+                    t = record.get_time().isoformat()
+                    # Use the earliest session_end per session
+                    if sid not in ended_sessions or t < ended_sessions[sid]:
+                        ended_sessions[sid] = t
 
         # Process sessions
         sessions = process_sessions(all_data, hidden_sessions, include_hidden, ended_sessions)
@@ -625,7 +628,12 @@ def end_session(session_id):
         if not validate_session_id(session_id):
             return safe_error('Invalid session ID', 400)
 
-        now = datetime.utcnow()
+        data = request.get_json(silent=True) or {}
+        end_time_str = data.get('endTime')
+        if end_time_str and validate_timestamp(end_time_str):
+            now = datetime.fromisoformat(end_time_str.replace('Z', '+00:00'))
+        else:
+            now = datetime.utcnow()
 
         point = Point("session_end") \
             .tag("session_id", session_id) \
@@ -835,18 +843,6 @@ def process_sessions(all_data, hidden_sessions, include_hidden=False, ended_sess
             continue
 
         end_time = ended_sessions.get(session['id'], None)
-
-        # Fallback: if no session_end record exists but the text points
-        # span a meaningful time range (>1 min), use the text-derived end
-        # time.  This covers migrated sessions that lack session_end data.
-        if end_time is None and session['startTime'] != session['endTime']:
-            try:
-                st = datetime.fromisoformat(session['startTime'].replace('Z', '+00:00'))
-                et = datetime.fromisoformat(session['endTime'].replace('Z', '+00:00'))
-                if (et - st).total_seconds() > 60:
-                    end_time = session['endTime']
-            except Exception:
-                pass
 
         sessions.append({
             'id': session['id'],
