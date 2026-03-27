@@ -35,6 +35,8 @@ function SessionDetail() {
 	const [savingField, setSavingField] = useState(null);
 	const [setpoints, setSetpoints] = useState([]);
 	const [loadingSetpoints, setLoadingSetpoints] = useState(false);
+	const [showSetpoints, setShowSetpoints] = useState(true);
+	const [hiddenSetpoints, setHiddenSetpoints] = useState(new Set());
 	const [pauses, setPauses] = useState([]);
 	const [isPaused, setIsPaused] = useState(false);
 	const [pauseLoading, setPauseLoading] = useState(false);
@@ -742,66 +744,104 @@ function SessionDetail() {
 
 			{/* Setpoint History Section */}
 			<div className="mt-4 p-4 bg-blue-50 rounded-lg">
-				<h3 className="text-sm font-medium text-gray-700 mb-3">
-					Temperature Setpoint History
-				</h3>
+				<button
+					onClick={() => setShowSetpoints(!showSetpoints)}
+					className="flex items-center justify-between w-full text-left"
+				>
+					<h3 className="text-sm font-medium text-gray-700">
+						Temperature Setpoint History
+					</h3>
+					<svg
+						className={`w-4 h-4 text-gray-500 transition-transform ${showSetpoints ? 'rotate-180' : ''}`}
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+					</svg>
+				</button>
 
-				{loadingSetpoints ? (
-					<p className="text-sm text-gray-500">Loading setpoints...</p>
-				) : setpoints.length === 0 ? (
-					<p className="text-sm text-gray-500 italic">
-						No setpoint data available
-					</p>
-				) : (
-					<div className="space-y-2">
-						{setpoints.map((setpoint, index) => {
-							const setpointTime = new Date(setpoint.time);
-							const nextSetpoint = setpoints[index + 1];
-							const endTime = nextSetpoint
-								? new Date(nextSetpoint.time)
-								: new Date(session.endTime);
+				{showSetpoints && (
+					<div className="mt-3">
+						{loadingSetpoints ? (
+							<p className="text-sm text-gray-500">Loading setpoints...</p>
+						) : setpoints.length === 0 ? (
+							<p className="text-sm text-gray-500 italic">
+								No setpoint data available
+							</p>
+						) : (
+							<div className="space-y-2">
+								{setpoints.filter((_, i) => !hiddenSetpoints.has(i)).map((setpoint, _filteredIndex, filteredArr) => {
+									const originalIndex = setpoints.indexOf(setpoint);
+									const setpointTime = new Date(setpoint.time);
+									// Find next visible setpoint for duration calc
+									const nextVisible = filteredArr[_filteredIndex + 1];
+									const endTime = nextVisible
+										? new Date(nextVisible.time)
+										: new Date(session.endTime);
 
-							const durationMs = endTime - setpointTime;
-							const hours = Math.floor(durationMs / (1000 * 60 * 60));
-							const minutes = Math.floor(
-								(durationMs % (1000 * 60 * 60)) / (1000 * 60)
-							);
+									const durationMs = endTime - setpointTime;
+									const hours = Math.floor(durationMs / (1000 * 60 * 60));
+									const minutes = Math.floor(
+										(durationMs % (1000 * 60 * 60)) / (1000 * 60)
+									);
 
-							return (
-								<div
-									key={index}
-									className="flex items-center justify-between p-3 bg-white rounded border-l-4 border-blue-500"
-								>
-									<div>
-										<div className="flex items-center gap-2">
-											<span className="text-2xl font-bold text-blue-600">
-												{setpoint.value}°F
-											</span>
-											{index === 0 && (
-												<span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-													Initial
-												</span>
-											)}
-											{index === setpoints.length - 1 && !nextSetpoint && (
-												<span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
-													Current
-												</span>
-											)}
+									return (
+										<div
+											key={originalIndex}
+											className="flex items-center justify-between p-3 bg-white rounded border-l-4 border-blue-500"
+										>
+											<div>
+												<div className="flex items-center gap-2">
+													<span className="text-2xl font-bold text-blue-600">
+														{setpoint.value}°F
+													</span>
+													{originalIndex === 0 && (
+														<span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+															Initial
+														</span>
+													)}
+													{!nextVisible && (
+														<span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+															Current
+														</span>
+													)}
+												</div>
+												<div className="text-xs text-gray-500 mt-1">
+													Set at {formatDate(setpoint.time)}
+												</div>
+											</div>
+											<div className="flex items-center gap-3">
+												<div className="text-right">
+													<div className="text-sm font-semibold text-gray-700">
+														{hours > 0 ? `${hours}h ` : ""}
+														{minutes}m
+													</div>
+													<div className="text-xs text-gray-500">duration</div>
+												</div>
+												<button
+													onClick={() => setHiddenSetpoints((prev) => new Set([...prev, originalIndex]))}
+													className="text-gray-300 hover:text-red-500 transition-colors"
+													title="Hide this setpoint"
+												>
+													<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+													</svg>
+												</button>
+											</div>
 										</div>
-										<div className="text-xs text-gray-500 mt-1">
-											Set at {formatDate(setpoint.time)}
-										</div>
-									</div>
-									<div className="text-right">
-										<div className="text-sm font-semibold text-gray-700">
-											{hours > 0 ? `${hours}h ` : ""}
-											{minutes}m
-										</div>
-										<div className="text-xs text-gray-500">duration</div>
-									</div>
-								</div>
-							);
-						})}
+									);
+								})}
+								{hiddenSetpoints.size > 0 && (
+									<button
+										onClick={() => setHiddenSetpoints(new Set())}
+										className="text-xs text-blue-600 hover:text-blue-700 font-medium mt-1"
+									>
+										Show {hiddenSetpoints.size} hidden setpoint{hiddenSetpoints.size > 1 ? 's' : ''}
+									</button>
+								)}
+							</div>
+						)}
 					</div>
 				)}
 			</div>
