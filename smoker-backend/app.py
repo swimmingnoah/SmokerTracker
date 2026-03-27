@@ -324,7 +324,10 @@ from(bucket: "{INFLUX_BUCKET}")
             for record in table.records:
                 sid = record.values.get('session_id')
                 if sid:
-                    ended_sessions[sid] = record.get_time().isoformat()
+                    t = record.get_time().isoformat()
+                    # Use the earliest session_end per session
+                    if sid not in ended_sessions or t < ended_sessions[sid]:
+                        ended_sessions[sid] = t
 
         # Process sessions
         sessions = process_sessions(all_data, hidden_sessions, include_hidden, ended_sessions)
