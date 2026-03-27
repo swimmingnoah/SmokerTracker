@@ -9,6 +9,7 @@ import {
 	Tooltip,
 	Legend,
 	ResponsiveContainer,
+	ReferenceArea,
 } from "recharts";
 import { CONFIG } from "./config";
 
@@ -872,17 +873,42 @@ function SessionDetail() {
 								<CartesianGrid strokeDasharray="3 3" />
 								<XAxis
 									dataKey="time"
-									tickFormatter={formatTime}
+									type="number"
+									scale="time"
+									domain={["dataMin", "dataMax"]}
+									tickFormatter={(ts) => formatTime(new Date(ts))}
 									angle={-45}
 									textAnchor="end"
 									height={80}
 								/>
 								<YAxis domain={[0, 'auto']} />
 								<Tooltip
-									labelFormatter={(value) => formatTime(new Date(value))}
+									labelFormatter={(ts) => formatTime(new Date(ts))}
 									formatter={(value) => [`${value}°F`]}
 								/>
 								<Legend />
+								{pauses.reduce((areas, event, index) => {
+									if (event.type === "pause") {
+										const resumeEvent = pauses[index + 1];
+										const x1 = new Date(event.time).getTime();
+										const x2 = resumeEvent?.type === "resume"
+											? new Date(resumeEvent.time).getTime()
+											: new Date().getTime();
+										areas.push(
+											<ReferenceArea
+												key={`pause-${index}`}
+												x1={x1}
+												x2={x2}
+												fill="#fbbf24"
+												fillOpacity={0.2}
+												stroke="#f59e0b"
+												strokeOpacity={0.4}
+												label={{ value: "Paused", position: "insideTop", fill: "#b45309", fontSize: 11 }}
+											/>
+										);
+									}
+									return areas;
+								}, [])}
 								{Object.keys(probeColors).map(
 									(probe) =>
 										temperatureData.some((d) => d[probe] !== undefined) && (
