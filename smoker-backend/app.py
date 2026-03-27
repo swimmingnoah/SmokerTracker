@@ -458,6 +458,9 @@ from(bucket: "{INFLUX_BUCKET}")
                     'type': record.values.get('event_type'),
                 })
 
+        # Sort across tables since pause/resume come from different series
+        events.sort(key=lambda e: e['time'])
+
         return jsonify({'pauses': events})
 
     except Exception as e:
