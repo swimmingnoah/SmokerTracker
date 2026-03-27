@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { CONFIG } from "./config";
+import { CONFIG, apiFetch } from "./config";
 
 function CreateSession() {
 	const navigate = useNavigate();
@@ -16,7 +16,7 @@ function CreateSession() {
 
 	const fetchMeatTypes = async () => {
 		try {
-			const response = await fetch(`${CONFIG.apiUrl}/meat-types`);
+			const response = await apiFetch(`${CONFIG.apiUrl}/meat-types`);
 			if (response.ok) {
 				const data = await response.json();
 				setMeatTypeOptions(data.meatTypes);
@@ -40,7 +40,7 @@ function CreateSession() {
 		try {
 			setCreating(true);
 
-			const response = await fetch(`${CONFIG.apiUrl}/sessions`, {
+			const response = await apiFetch(`${CONFIG.apiUrl}/sessions`, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",

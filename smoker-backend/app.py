@@ -3,23 +3,80 @@ from flask_cors import CORS
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 from datetime import datetime
+from functools import wraps
 import os
+import re
 import uuid
 
 app = Flask(__name__)
-CORS(app)
+
+# CORS: only allow specified origins (for local dev). In production behind
+# nginx, requests are same-origin so CORS headers are not needed.
+ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', '').strip()
+if ALLOWED_ORIGINS:
+    CORS(app, resources={r"/api/*": {"origins": ALLOWED_ORIGINS.split(',')}})
 
 # Configuration
 INFLUX_URL = os.getenv('INFLUX_URL', 'http://YOUR_SERVER_IP:8086')
 INFLUX_TOKEN = os.getenv('INFLUX_TOKEN', '')
 INFLUX_ORG = os.getenv('INFLUX_ORG', 'homeassistant')
 INFLUX_BUCKET = os.getenv('INFLUX_BUCKET', 'smoker')
+API_KEY = os.getenv('API_KEY', '')
 
 # Initialize InfluxDB client
 influx_client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
 query_api = influx_client.query_api()
 write_api = influx_client.write_api(write_options=SYNCHRONOUS)
 
+# --- Input validation ---
+
+MAX_NAME_LENGTH = 255
+MAX_NOTES_LENGTH = 5000
+MAX_MEAT_TYPE_LENGTH = 100
+
+# ISO 8601 timestamp pattern
+ISO_TIMESTAMP_RE = re.compile(
+    r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$'
+)
+
+# UUID pattern (also allow legacy session IDs like smoke_YYYYMMDD_HHMMSS)
+SESSION_ID_RE = re.compile(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$|^smoke_\d{8}_\d{6}$'
+)
+
+
+def validate_timestamp(ts):
+    """Validate that a string is a proper ISO 8601 timestamp."""
+    return bool(ts and ISO_TIMESTAMP_RE.match(ts))
+
+
+def validate_session_id(sid):
+    """Validate that a session ID matches expected format."""
+    return bool(sid and SESSION_ID_RE.match(sid))
+
+
+def safe_error(message, status_code=500):
+    """Return a generic error response without leaking internals."""
+    return jsonify({'error': message}), status_code
+
+
+# --- API key authentication ---
+
+def require_api_key(f):
+    """Decorator to require API key on mutating endpoints."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not API_KEY:
+            # No API key configured — skip auth (local dev)
+            return f(*args, **kwargs)
+        key = request.headers.get('X-API-Key', '')
+        if key != API_KEY:
+            return jsonify({'error': 'Unauthorized'}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+
+# --- Endpoints ---
 
 @app.route('/api/health', methods=['GET'])
 def health():
@@ -27,18 +84,39 @@ def health():
     return jsonify({'status': 'ok', 'message': 'Smoker Tracker API is running'})
 
 
+@app.route('/api/auth/status', methods=['GET'])
+def auth_status():
+    """Check if authentication is required"""
+    return jsonify({'authRequired': bool(API_KEY)})
+
+
+@app.route('/api/auth/verify', methods=['POST'])
+def auth_verify():
+    """Verify an API key"""
+    if not API_KEY:
+        return jsonify({'valid': True})
+    data = request.get_json()
+    key = (data or {}).get('key', '')
+    if key == API_KEY:
+        return jsonify({'valid': True})
+    return jsonify({'valid': False}), 401
+
 
 @app.route('/api/sessions', methods=['POST'])
+@require_api_key
 def create_session():
     """Create a new smoke session"""
     try:
         data = request.get_json()
-        name = data.get('name', '').strip()
-        meat_type = data.get('meatType', '').strip()
-        notes = data.get('notes', '').strip()
+        if not data:
+            return safe_error('Invalid request body', 400)
+
+        name = data.get('name', '').strip()[:MAX_NAME_LENGTH]
+        meat_type = data.get('meatType', '').strip()[:MAX_MEAT_TYPE_LENGTH]
+        notes = data.get('notes', '').strip()[:MAX_NOTES_LENGTH]
 
         if not name:
-            return jsonify({'error': 'name required'}), 400
+            return safe_error('name required', 400)
 
         session_id = str(uuid.uuid4())
         now = datetime.utcnow()
@@ -86,7 +164,7 @@ def create_session():
 
     except Exception as e:
         print(f"Error creating session: {e}")
-        return jsonify({'error': str(e)}), 500
+        return safe_error('Failed to create session')
 
 
 @app.route('/api/meat-types', methods=['GET'])
@@ -101,14 +179,18 @@ def get_meat_types():
 
 
 @app.route('/api/meat-types', methods=['POST'])
+@require_api_key
 def add_meat_type():
     """Add a new meat type to the list"""
     try:
         data = request.get_json()
-        name = data.get('name', '').strip()
+        if not data:
+            return safe_error('Invalid request body', 400)
+
+        name = data.get('name', '').strip()[:MAX_MEAT_TYPE_LENGTH]
 
         if not name:
-            return jsonify({'error': 'name required'}), 400
+            return safe_error('name required', 400)
 
         meat_types = get_meat_types_list()
 
@@ -128,15 +210,16 @@ def add_meat_type():
 
     except Exception as e:
         print(f"Error adding meat type: {e}")
-        return jsonify({'error': str(e)}), 500
+        return safe_error('Failed to add meat type')
 
 
 @app.route('/api/meat-types/<meat_type>', methods=['DELETE'])
+@require_api_key
 def delete_meat_type(meat_type):
     """Remove a meat type from the list"""
     try:
         meat_types = get_meat_types_list()
-        meat_type = meat_type.strip()
+        meat_type = meat_type.strip()[:MAX_MEAT_TYPE_LENGTH]
 
         if meat_type not in meat_types:
             return jsonify({'success': True, 'message': 'Meat type not found'})
@@ -154,27 +237,31 @@ def delete_meat_type(meat_type):
 
     except Exception as e:
         print(f"Error deleting meat type: {e}")
-        return jsonify({'error': str(e)}), 500
+        return safe_error('Failed to delete meat type')
 
 
 @app.route('/api/meat-types/<meat_type>', methods=['PUT'])
+@require_api_key
 def rename_meat_type(meat_type):
     """Rename a meat type"""
     try:
         data = request.get_json()
-        new_name = data.get('name', '').strip()
+        if not data:
+            return safe_error('Invalid request body', 400)
+
+        new_name = data.get('name', '').strip()[:MAX_MEAT_TYPE_LENGTH]
 
         if not new_name:
-            return jsonify({'error': 'name required'}), 400
+            return safe_error('name required', 400)
 
         meat_types = get_meat_types_list()
-        meat_type = meat_type.strip()
+        meat_type = meat_type.strip()[:MAX_MEAT_TYPE_LENGTH]
 
         if meat_type not in meat_types:
-            return jsonify({'error': 'Meat type not found'}), 404
+            return safe_error('Meat type not found', 404)
 
         if new_name in meat_types:
-            return jsonify({'error': 'A meat type with that name already exists'}), 400
+            return safe_error('A meat type with that name already exists', 400)
 
         idx = meat_types.index(meat_type)
         meat_types[idx] = new_name
@@ -190,7 +277,7 @@ def rename_meat_type(meat_type):
 
     except Exception as e:
         print(f"Error renaming meat type: {e}")
-        return jsonify({'error': str(e)}), 500
+        return safe_error('Failed to rename meat type')
 
 
 @app.route('/api/sessions', methods=['GET'])
@@ -246,18 +333,21 @@ from(bucket: "{INFLUX_BUCKET}")
 
     except Exception as e:
         print(f"Error fetching sessions: {e}")
-        return jsonify({'error': str(e)}), 500
+        return safe_error('Failed to fetch sessions')
 
 
 @app.route('/api/sessions/<session_id>/temperatures', methods=['GET'])
 def get_session_temperatures(session_id):
     """Get temperature data for a specific session"""
     try:
+        if not validate_session_id(session_id):
+            return safe_error('Invalid session ID', 400)
+
         start_time = request.args.get('start')
         end_time = request.args.get('end')
-        
-        if not start_time or not end_time:
-            return jsonify({'error': 'start and end times required'}), 400
+
+        if not validate_timestamp(start_time) or not validate_timestamp(end_time):
+            return safe_error('Invalid timestamp format', 400)
 
         query = f'''
 from(bucket: "{INFLUX_BUCKET}")
@@ -270,16 +360,16 @@ from(bucket: "{INFLUX_BUCKET}")
         '''
 
         tables = query_api.query(query, org=INFLUX_ORG)
-        
+
         data_by_probe = {}
         for table in tables:
             for record in table.records:
                 entity_id = record.values.get('entity_id')
                 probe_name = entity_id.replace('esp32smoker_', '').replace('_temperature', '')
-                
+
                 if probe_name not in data_by_probe:
                     data_by_probe[probe_name] = []
-                
+
                 data_by_probe[probe_name].append({
                     'time': record.get_time().isoformat(),
                     'value': round(record.get_value(), 1)
@@ -295,38 +385,42 @@ from(bucket: "{INFLUX_BUCKET}")
                 time_map[time_key][probe] = point['value']
 
         combined = sorted(time_map.values(), key=lambda x: x['time'])
-        
+
         return jsonify({'data': combined})
-    
+
     except Exception as e:
         print(f"Error fetching temperatures: {e}")
-        return jsonify({'error': str(e)}), 500
+        return safe_error('Failed to fetch temperature data')
 
 
 @app.route('/api/sessions/<session_id>', methods=['DELETE'])
+@require_api_key
 def hide_session(session_id):
     """Hide a smoke session (doesn't delete data, just hides it from view)"""
     try:
+        if not validate_session_id(session_id):
+            return safe_error('Invalid session ID', 400)
+
         # Get current hidden sessions
         hidden_sessions = get_hidden_sessions_list()
-        
+
         # Add new session to hidden list
         if session_id not in hidden_sessions:
             hidden_sessions.append(session_id)
-        
+
         # Write updated hidden list to InfluxDB as a data point
         point = Point("hidden_sessions") \
             .tag("app", "smoker_tracker") \
             .field("session_ids", ','.join(hidden_sessions)) \
             .time(datetime.utcnow())
-        
+
         write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
-        
+
         return jsonify({'success': True, 'message': 'Session hidden'})
-    
+
     except Exception as e:
         print(f"Error hiding session: {e}")
-        return jsonify({'error': str(e)}), 500
+        return safe_error('Failed to hide session')
 
 
 @app.route('/api/hidden-sessions', methods=['GET'])
@@ -335,13 +429,14 @@ def get_hidden_sessions():
     try:
         hidden_list = get_hidden_sessions_list()
         return jsonify({'hiddenSessions': hidden_list})
-    
+
     except Exception as e:
         print(f"Error fetching hidden sessions: {e}")
-        return jsonify({'error': str(e)}), 500
+        return safe_error('Failed to fetch hidden sessions')
 
 
 @app.route('/api/hidden-sessions', methods=['DELETE'])
+@require_api_key
 def unhide_all_sessions():
     """Unhide all sessions (clear the hidden list)"""
     try:
@@ -350,28 +445,29 @@ def unhide_all_sessions():
             .tag("app", "smoker_tracker") \
             .field("session_ids", '') \
             .time(datetime.utcnow())
-        
+
         write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
-        
+
         return jsonify({'success': True, 'message': 'All sessions unhidden'})
-    
+
     except Exception as e:
         print(f"Error unhiding sessions: {e}")
-        return jsonify({'error': str(e)}), 500
-    
+        return safe_error('Failed to unhide sessions')
+
 
 @app.route('/api/sessions/<session_id>/setpoints', methods=['GET'])
 def get_session_setpoints(session_id):
     """Get temperature setpoint history for a session"""
     try:
+        if not validate_session_id(session_id):
+            return safe_error('Invalid session ID', 400)
+
         start_time = request.args.get('start')
         end_time = request.args.get('end')
 
-        if not start_time or not end_time:
-            return jsonify({'error': 'start and end times required'}), 400
+        if not validate_timestamp(start_time) or not validate_timestamp(end_time):
+            return safe_error('Invalid timestamp format', 400)
 
-        # Query for setpoint data — try both 'value' and 'state' fields
-        # since HA InfluxDB integration may use either depending on entity type
         query = f'''
 from(bucket: "{INFLUX_BUCKET}")
   |> range(start: {start_time}, stop: {end_time})
@@ -407,13 +503,17 @@ from(bucket: "{INFLUX_BUCKET}")
 
     except Exception as e:
         print(f"Error fetching setpoints: {e}")
-        return jsonify({'error': str(e)}), 500
+        return safe_error('Failed to fetch setpoints')
 
 
 @app.route('/api/sessions/<session_id>/restore', methods=['POST'])
+@require_api_key
 def restore_session(session_id):
     """Unhide a single session"""
     try:
+        if not validate_session_id(session_id):
+            return safe_error('Invalid session ID', 400)
+
         hidden_sessions = get_hidden_sessions_list()
 
         if session_id not in hidden_sessions:
@@ -432,13 +532,16 @@ def restore_session(session_id):
 
     except Exception as e:
         print(f"Error restoring session: {e}")
-        return jsonify({'error': str(e)}), 500
+        return safe_error('Failed to restore session')
 
 
 @app.route('/api/sessions/<session_id>/pauses', methods=['GET'])
 def get_session_pauses(session_id):
     """Get all pause/resume events for a session"""
     try:
+        if not validate_session_id(session_id):
+            return safe_error('Invalid session ID', 400)
+
         query = f'''
 from(bucket: "{INFLUX_BUCKET}")
   |> range(start: -365d)
@@ -465,13 +568,17 @@ from(bucket: "{INFLUX_BUCKET}")
 
     except Exception as e:
         print(f"Error fetching pauses: {e}")
-        return jsonify({'error': str(e)}), 500
+        return safe_error('Failed to fetch pause events')
 
 
 @app.route('/api/sessions/<session_id>/pause', methods=['POST'])
+@require_api_key
 def pause_session(session_id):
     """Record a pause event for a session"""
     try:
+        if not validate_session_id(session_id):
+            return safe_error('Invalid session ID', 400)
+
         point = Point("session_pauses") \
             .tag("session_id", session_id) \
             .tag("event_type", "pause") \
@@ -484,13 +591,17 @@ def pause_session(session_id):
 
     except Exception as e:
         print(f"Error pausing session: {e}")
-        return jsonify({'error': str(e)}), 500
+        return safe_error('Failed to pause session')
 
 
 @app.route('/api/sessions/<session_id>/resume', methods=['POST'])
+@require_api_key
 def resume_session(session_id):
     """Record a resume event for a session"""
     try:
+        if not validate_session_id(session_id):
+            return safe_error('Invalid session ID', 400)
+
         point = Point("session_pauses") \
             .tag("session_id", session_id) \
             .tag("event_type", "resume") \
@@ -503,13 +614,17 @@ def resume_session(session_id):
 
     except Exception as e:
         print(f"Error resuming session: {e}")
-        return jsonify({'error': str(e)}), 500
+        return safe_error('Failed to resume session')
 
 
 @app.route('/api/sessions/<session_id>/end', methods=['POST'])
+@require_api_key
 def end_session(session_id):
     """End a smoke session by recording an end-time marker"""
     try:
+        if not validate_session_id(session_id):
+            return safe_error('Invalid session ID', 400)
+
         now = datetime.utcnow()
 
         point = Point("session_end") \
@@ -523,39 +638,101 @@ def end_session(session_id):
 
     except Exception as e:
         print(f"Error ending session: {e}")
-        return jsonify({'error': str(e)}), 500
+        return safe_error('Failed to end session')
+
+
+@app.route('/api/sessions/<session_id>', methods=['PUT'])
+@require_api_key
+def update_session(session_id):
+    """Update session fields (name, meatType, notes)"""
+    try:
+        if not validate_session_id(session_id):
+            return safe_error('Invalid session ID', 400)
+
+        data = request.get_json()
+        if not data:
+            return safe_error('Invalid request body', 400)
+
+        now = datetime.utcnow()
+        points = []
+
+        if 'name' in data:
+            name = data['name'].strip()[:MAX_NAME_LENGTH]
+            points.append(
+                Point("text")
+                    .tag("domain", "input_text")
+                    .tag("entity_id", "smoke_session_name")
+                    .tag("current_session_id", session_id)
+                    .field("state", name)
+                    .time(now)
+            )
+
+        if 'meatType' in data:
+            meat_type = data['meatType'].strip()[:MAX_MEAT_TYPE_LENGTH]
+            points.append(
+                Point("text")
+                    .tag("domain", "input_text")
+                    .tag("entity_id", "meat_type")
+                    .tag("current_session_id", session_id)
+                    .field("state", meat_type)
+                    .time(now)
+            )
+
+        if 'notes' in data:
+            notes = data['notes'].strip()[:MAX_NOTES_LENGTH]
+            points.append(
+                Point("text")
+                    .tag("domain", "input_text")
+                    .tag("entity_id", "smoke_session_notes")
+                    .tag("current_session_id", session_id)
+                    .field("state", notes)
+                    .time(now)
+            )
+
+        if points:
+            write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=points)
+
+        return jsonify({'success': True, 'message': 'Session updated'})
+
+    except Exception as e:
+        print(f"Error updating session: {e}")
+        return safe_error('Failed to update session')
 
 
 @app.route('/api/sessions/<session_id>/notes', methods=['PUT'])
+@require_api_key
 def update_session_notes(session_id):
-    """Update notes for a session via Home Assistant API"""
+    """Update notes for a session"""
     try:
+        if not validate_session_id(session_id):
+            return safe_error('Invalid session ID', 400)
+
         data = request.get_json()
-        notes = data.get('notes', '')
-        
+        if not data:
+            return safe_error('Invalid request body', 400)
+
+        notes = data.get('notes', '').strip()[:MAX_NOTES_LENGTH]
+
         if not notes:
-            return jsonify({'error': 'notes required'}), 400
-        
-        # We need to update Home Assistant's input_text.smoke_session_notes
-        # For this to work, we need to call HA API
-        # Since we don't have HA_TOKEN by default, we'll write directly to InfluxDB
-        
-        # Write a new data point with the updated notes
+            return safe_error('notes required', 400)
+
         point = Point("text") \
             .tag("domain", "input_text") \
             .tag("entity_id", "smoke_session_notes") \
             .field("state", notes) \
             .field("value", notes) \
             .time(datetime.utcnow())
-        
+
         write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
-        
+
         return jsonify({'success': True, 'message': 'Notes updated'})
-    
+
     except Exception as e:
         print(f"Error updating notes: {e}")
-        return jsonify({'error': str(e)}), 500
+        return safe_error('Failed to update notes')
 
+
+# --- Helper functions ---
 
 def get_hidden_sessions_list():
     """Helper function to get the list of hidden session IDs from InfluxDB"""
@@ -567,17 +744,17 @@ from(bucket: "{INFLUX_BUCKET}")
   |> filter(fn: (r) => r["_field"] == "session_ids")
   |> last()
         '''
-        
+
         tables = query_api.query(query, org=INFLUX_ORG)
-        
+
         for table in tables:
             for record in table.records:
                 value = record.get_value()
                 if value and value != '':
                     return [s.strip() for s in value.split(',') if s.strip()]
-        
+
         return []
-    
+
     except Exception as e:
         print(f"Error getting hidden sessions: {e}")
         return []
@@ -676,4 +853,4 @@ def process_sessions(all_data, hidden_sessions, include_hidden=False, ended_sess
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=os.getenv('FLASK_ENV') == 'development')
