@@ -844,18 +844,6 @@ def process_sessions(all_data, hidden_sessions, include_hidden=False, ended_sess
 
         end_time = ended_sessions.get(session['id'], None)
 
-        # Fallback: if no session_end record exists but the text points
-        # span a meaningful time range (>1 min), use the text-derived end
-        # time.  This covers migrated sessions that lack session_end data.
-        if end_time is None and session['startTime'] != session['endTime']:
-            try:
-                st = datetime.fromisoformat(session['startTime'].replace('Z', '+00:00'))
-                et = datetime.fromisoformat(session['endTime'].replace('Z', '+00:00'))
-                if (et - st).total_seconds() > 60:
-                    end_time = session['endTime']
-            except Exception:
-                pass
-
         sessions.append({
             'id': session['id'],
             'name': session['name'] or 'Unnamed Session',
