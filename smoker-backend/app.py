@@ -625,7 +625,12 @@ def end_session(session_id):
         if not validate_session_id(session_id):
             return safe_error('Invalid session ID', 400)
 
-        now = datetime.utcnow()
+        data = request.get_json(silent=True) or {}
+        end_time_str = data.get('endTime')
+        if end_time_str and validate_timestamp(end_time_str):
+            now = datetime.fromisoformat(end_time_str.replace('Z', '+00:00'))
+        else:
+            now = datetime.utcnow()
 
         point = Point("session_end") \
             .tag("session_id", session_id) \
