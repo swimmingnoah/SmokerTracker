@@ -79,7 +79,33 @@ function SessionDetail() {
 		fetchSetpoints();
 		fetchPauses();
 		fetchMeatTypeOptions();
+		fetchHiddenSetpoints();
 	}, [session]);
+
+	const fetchHiddenSetpoints = async () => {
+		try {
+			const encodedSessionId = encodeURIComponent(session.id);
+			const response = await apiFetch(`${CONFIG.apiUrl}/sessions/${encodedSessionId}/hidden-setpoints`);
+			if (!response.ok) return;
+			const data = await response.json();
+			setHiddenSetpoints(new Set(data.hiddenSetpoints));
+		} catch (err) {
+			console.error("Error fetching hidden setpoints:", err);
+		}
+	};
+
+	const saveHiddenSetpoints = async (newSet) => {
+		try {
+			const encodedSessionId = encodeURIComponent(session.id);
+			await apiFetch(`${CONFIG.apiUrl}/sessions/${encodedSessionId}/hidden-setpoints`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ timestamps: [...newSet] }),
+			});
+		} catch (err) {
+			console.error("Error saving hidden setpoints:", err);
+		}
+	};
 
 	const fetchMeatTypeOptions = async () => {
 		try {
@@ -771,9 +797,9 @@ function SessionDetail() {
 							</p>
 						) : (
 							<div className="space-y-2">
-								{setpoints.filter((_, i) => !hiddenSetpoints.has(i)).map((setpoint, _filteredIndex, filteredArr) => {
-									const originalIndex = setpoints.indexOf(setpoint);
+								{setpoints.filter((sp) => !hiddenSetpoints.has(sp.time)).map((setpoint, _filteredIndex, filteredArr) => {
 									const setpointTime = new Date(setpoint.time);
+									const isFirst = setpoints[0] === setpoint;
 									// Find next visible setpoint for duration calc
 									const nextVisible = filteredArr[_filteredIndex + 1];
 									const endTime = nextVisible
@@ -788,7 +814,7 @@ function SessionDetail() {
 
 									return (
 										<div
-											key={originalIndex}
+											key={setpoint.time}
 											className="flex items-center justify-between p-3 bg-white rounded border-l-4 border-blue-500"
 										>
 											<div>
@@ -796,7 +822,7 @@ function SessionDetail() {
 													<span className="text-2xl font-bold text-blue-600">
 														{setpoint.value}°F
 													</span>
-													{originalIndex === 0 && (
+													{isFirst && (
 														<span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
 															Initial
 														</span>
@@ -820,7 +846,11 @@ function SessionDetail() {
 													<div className="text-xs text-gray-500">duration</div>
 												</div>
 												<button
-													onClick={() => setHiddenSetpoints((prev) => new Set([...prev, originalIndex]))}
+													onClick={() => {
+														const newSet = new Set([...hiddenSetpoints, setpoint.time]);
+														setHiddenSetpoints(newSet);
+														saveHiddenSetpoints(newSet);
+													}}
 													className="text-gray-300 hover:text-red-500 transition-colors"
 													title="Hide this setpoint"
 												>
@@ -834,7 +864,10 @@ function SessionDetail() {
 								})}
 								{hiddenSetpoints.size > 0 && (
 									<button
-										onClick={() => setHiddenSetpoints(new Set())}
+										onClick={() => {
+											setHiddenSetpoints(new Set());
+											saveHiddenSetpoints(new Set());
+										}}
 										className="text-xs text-blue-600 hover:text-blue-700 font-medium mt-1"
 									>
 										Show {hiddenSetpoints.size} hidden setpoint{hiddenSetpoints.size > 1 ? 's' : ''}

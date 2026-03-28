@@ -740,6 +740,56 @@ def update_session_notes(session_id):
         return safe_error('Failed to update notes')
 
 
+@app.route('/api/sessions/<session_id>/hidden-setpoints', methods=['GET'])
+def get_hidden_setpoints(session_id):
+    """Get hidden setpoint timestamps for a session"""
+    try:
+        if not validate_session_id(session_id):
+            return safe_error('Invalid session ID', 400)
+
+        hidden = get_hidden_setpoints_list(session_id)
+        return jsonify({'hiddenSetpoints': hidden})
+
+    except Exception as e:
+        print(f"Error fetching hidden setpoints: {e}")
+        return jsonify({'hiddenSetpoints': []})
+
+
+@app.route('/api/sessions/<session_id>/hidden-setpoints', methods=['PUT'])
+@require_api_key
+def update_hidden_setpoints(session_id):
+    """Update the list of hidden setpoint timestamps for a session"""
+    try:
+        if not validate_session_id(session_id):
+            return safe_error('Invalid session ID', 400)
+
+        data = request.get_json()
+        if not data:
+            return safe_error('Invalid request body', 400)
+
+        timestamps = data.get('timestamps', [])
+        if not isinstance(timestamps, list):
+            return safe_error('timestamps must be a list', 400)
+
+        # Validate all timestamps
+        for ts in timestamps:
+            if not isinstance(ts, str):
+                return safe_error('Each timestamp must be a string', 400)
+
+        point = Point("hidden_setpoints") \
+            .tag("session_id", session_id) \
+            .field("timestamps", ','.join(timestamps)) \
+            .time(datetime.utcnow())
+
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+
+        return jsonify({'success': True})
+
+    except Exception as e:
+        print(f"Error updating hidden setpoints: {e}")
+        return safe_error('Failed to update hidden setpoints')
+
+
 # --- Helper functions ---
 
 def get_hidden_sessions_list():
@@ -791,6 +841,33 @@ from(bucket: "{INFLUX_BUCKET}")
 
     except Exception as e:
         print(f"Error getting meat types list: {e}")
+        return []
+
+
+def get_hidden_setpoints_list(session_id):
+    """Helper function to get hidden setpoint timestamps for a session"""
+    try:
+        query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -365d)
+  |> filter(fn: (r) => r["_measurement"] == "hidden_setpoints")
+  |> filter(fn: (r) => r["session_id"] == "{session_id}")
+  |> filter(fn: (r) => r["_field"] == "timestamps")
+  |> last()
+        '''
+
+        tables = query_api.query(query, org=INFLUX_ORG)
+
+        for table in tables:
+            for record in table.records:
+                value = record.get_value()
+                if value and value != '':
+                    return [s.strip() for s in value.split(',') if s.strip()]
+
+        return []
+
+    except Exception as e:
+        print(f"Error getting hidden setpoints: {e}")
         return []
 
 
