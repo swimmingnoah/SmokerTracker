@@ -40,6 +40,8 @@ function SessionDetail() {
 	const [pauses, setPauses] = useState([]);
 	const [isPaused, setIsPaused] = useState(false);
 	const [pauseLoading, setPauseLoading] = useState(false);
+	const [editingPauseIndex, setEditingPauseIndex] = useState(null);
+	const [editedPauseTime, setEditedPauseTime] = useState("");
 	const [meatTypeOptions, setMeatTypeOptions] = useState([]);
 
 	// Ref for incremental fetch — tracks last data point timestamp
@@ -105,6 +107,33 @@ function SessionDetail() {
 		} catch (err) {
 			console.error("Error saving hidden setpoints:", err);
 		}
+	};
+
+	const handleSavePauseTime = async (index) => {
+		try {
+			const newTime = new Date(editedPauseTime).toISOString();
+			const encodedSessionId = encodeURIComponent(session.id);
+			const response = await apiFetch(
+				`${CONFIG.apiUrl}/sessions/${encodedSessionId}/pauses/${index}`,
+				{
+					method: "PUT",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ time: newTime }),
+				}
+			);
+			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+			setEditingPauseIndex(null);
+			await fetchPauses();
+		} catch (err) {
+			alert("Failed to update pause time: " + err.message);
+		}
+	};
+
+	const toLocalDatetimeValue = (isoString) => {
+		const d = new Date(isoString);
+		const offset = d.getTimezoneOffset();
+		const local = new Date(d.getTime() - offset * 60000);
+		return local.toISOString().slice(0, 16);
 	};
 
 	const fetchMeatTypeOptions = async () => {
@@ -898,6 +927,7 @@ function SessionDetail() {
 						} else if (isPauseEvent && !nextEvent) {
 							durationLabel = "ongoing";
 						}
+						const isEditing = editingPauseIndex === index;
 						return (
 							<div
 								key={index}
@@ -905,16 +935,47 @@ function SessionDetail() {
 									isPauseEvent ? "border-yellow-400" : "border-green-400"
 								}`}
 							>
-								<div>
+								<div className="flex-1 min-w-0">
 									<span className={`text-sm font-semibold ${isPauseEvent ? "text-yellow-700" : "text-green-700"}`}>
 										{isPauseEvent ? "Paused" : "Resumed"}
 									</span>
-									<div className="text-xs text-gray-500 mt-0.5">
-										{formatDate(event.time)}
-									</div>
+									{isEditing ? (
+										<div className="flex flex-wrap items-center gap-2 mt-1">
+											<input
+												type="datetime-local"
+												value={editedPauseTime}
+												onChange={(e) => setEditedPauseTime(e.target.value)}
+												className="px-2 py-1 border-2 border-orange-500 rounded text-xs focus:outline-none"
+												autoFocus
+											/>
+											<button
+												onClick={() => handleSavePauseTime(index)}
+												className="bg-orange-600 text-white px-2 py-1 rounded text-xs hover:bg-orange-700"
+											>
+												Save
+											</button>
+											<button
+												onClick={() => setEditingPauseIndex(null)}
+												className="bg-gray-300 text-gray-700 px-2 py-1 rounded text-xs hover:bg-gray-400"
+											>
+												Cancel
+											</button>
+										</div>
+									) : (
+										<div
+											className="text-xs text-gray-500 mt-0.5 cursor-pointer hover:text-orange-600"
+											onClick={() => {
+												setEditingPauseIndex(index);
+												setEditedPauseTime(toLocalDatetimeValue(event.time));
+											}}
+											title="Click to edit time"
+										>
+											{formatDate(event.time)}
+										</div>
+									)}
 								</div>
-								{durationLabel && (
-									<div className="text-right">
+								{durationLabel && !isEditing && (
+									<div className="text-right ml-3">
 										<div className="text-sm font-semibold text-gray-700">{durationLabel}</div>
 										<div className="text-xs text-gray-500">off smoker</div>
 									</div>

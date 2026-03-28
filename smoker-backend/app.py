@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 import os
 import re
@@ -618,6 +618,75 @@ def resume_session(session_id):
     except Exception as e:
         print(f"Error resuming session: {e}")
         return safe_error('Failed to resume session')
+
+
+@app.route('/api/sessions/<session_id>/pauses/<int:pause_index>', methods=['PUT'])
+@require_api_key
+def update_pause_event(session_id, pause_index):
+    """Update the time of a pause/resume event"""
+    try:
+        if not validate_session_id(session_id):
+            return safe_error('Invalid session ID', 400)
+
+        data = request.get_json()
+        if not data:
+            return safe_error('Invalid request body', 400)
+
+        new_time_str = data.get('time', '').strip()
+        if not validate_timestamp(new_time_str):
+            return safe_error('Invalid timestamp format', 400)
+
+        new_time = datetime.fromisoformat(new_time_str.replace('Z', '+00:00'))
+
+        # Fetch all pause events for this session to find the one at the given index
+        query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -365d)
+  |> filter(fn: (r) => r["_measurement"] == "session_pauses")
+  |> filter(fn: (r) => r["session_id"] == "{session_id}")
+  |> filter(fn: (r) => r["_field"] == "value")
+  |> sort(columns: ["_time"])
+        '''
+
+        tables = query_api.query(query, org=INFLUX_ORG)
+
+        events = []
+        for table in tables:
+            for record in table.records:
+                events.append({
+                    'time': record.get_time(),
+                    'type': record.values.get('event_type'),
+                })
+        events.sort(key=lambda e: e['time'])
+
+        if pause_index < 0 or pause_index >= len(events):
+            return safe_error('Pause event not found', 404)
+
+        old_event = events[pause_index]
+
+        # Delete old point using InfluxDB delete API
+        delete_api = influx_client.delete_api()
+        old_time = old_event['time']
+        # Delete within a 1ms window around the exact timestamp
+        start_del = old_time - timedelta(milliseconds=1)
+        stop_del = old_time + timedelta(milliseconds=1)
+        predicate = f'_measurement="session_pauses" AND session_id="{session_id}" AND event_type="{old_event["type"]}"'
+        delete_api.delete(start_del, stop_del, predicate, bucket=INFLUX_BUCKET, org=INFLUX_ORG)
+
+        # Write new point at the updated time
+        point = Point("session_pauses") \
+            .tag("session_id", session_id) \
+            .tag("event_type", old_event['type']) \
+            .field("value", 1) \
+            .time(new_time)
+
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+
+        return jsonify({'success': True, 'message': 'Pause event updated'})
+
+    except Exception as e:
+        print(f"Error updating pause event: {e}")
+        return safe_error('Failed to update pause event')
 
 
 @app.route('/api/sessions/<session_id>/end', methods=['POST'])
