@@ -553,24 +553,24 @@ function SessionDetail() {
 				</button>
 			</div>
 
-			<div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+			<div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 mb-6">
 				{/* Editable Name */}
-				<div className="flex justify-between items-center mb-2">
+				<div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-2">
 					{isEditingName ? (
-						<div className="flex items-center gap-2">
+						<div className="flex items-center gap-2 w-full sm:w-auto">
 							<input
 								type="text"
 								value={editedName}
 								onChange={(e) => setEditedName(e.target.value)}
-								className="flex-1 text-3xl font-bold text-gray-800 px-2 py-1 border-2 border-orange-500 rounded focus:outline-none"
+								className="flex-1 text-xl sm:text-3xl font-bold text-gray-800 px-2 py-1 border-2 border-orange-500 rounded focus:outline-none min-w-0"
 								autoFocus
 							/>
 							<button
 								onClick={handleSaveName}
 								disabled={savingField === "name"}
-								className="bg-orange-600 text-white px-3 py-1 rounded hover:bg-orange-700 text-sm disabled:opacity-50"
+								className="bg-orange-600 text-white px-3 py-1 rounded hover:bg-orange-700 text-sm disabled:opacity-50 whitespace-nowrap"
 							>
-								{savingField === "name" ? "Saving..." : "Save"}
+								{savingField === "name" ? "..." : "Save"}
 							</button>
 							<button
 								onClick={() => handleCancelEdit("name")}
@@ -582,7 +582,7 @@ function SessionDetail() {
 						</div>
 					) : (
 						<div className="flex items-center gap-2 group">
-							<h2 className="text-3xl font-bold text-gray-800">
+							<h2 className="text-2xl sm:text-3xl font-bold text-gray-800">
 								{session.name}
 							</h2>
 							<button
@@ -595,11 +595,11 @@ function SessionDetail() {
 					)}
 
 					{session.endTime === null ? (
-						<div className="flex items-center gap-2">
+						<div className="flex items-center gap-2 w-full sm:w-auto">
 							<button
 								onClick={handlePauseResume}
 								disabled={pauseLoading}
-								className={`px-6 py-3 rounded-lg font-medium flex items-center gap-2 disabled:opacity-50 ${
+								className={`flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50 text-sm sm:text-base ${
 									isPaused
 										? "bg-green-600 text-white hover:bg-green-700"
 										: "bg-yellow-500 text-white hover:bg-yellow-600"
@@ -609,7 +609,7 @@ function SessionDetail() {
 							</button>
 							<button
 								onClick={handleEndSession}
-								className="bg-orange-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-orange-700 flex items-center gap-2"
+								className="flex-1 sm:flex-none bg-orange-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium hover:bg-orange-700 flex items-center justify-center gap-2 text-sm sm:text-base"
 							>
 								End Smoke
 							</button>
@@ -619,10 +619,10 @@ function SessionDetail() {
 					)}
 				</div>
 
-				<div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-4">
+				<div className="flex flex-wrap gap-3 text-sm text-gray-600 mb-4">
 					{/* Editable Meat Type */}
 					{isEditingMeatType ? (
-						<div className="flex items-center gap-2">
+						<div className="flex flex-wrap items-center gap-2">
 							<select
 								value={editedMeatType}
 								onChange={(e) => setEditedMeatType(e.target.value)}
@@ -734,29 +734,29 @@ function SessionDetail() {
 
 			{/* Current Temperatures Card */}
 			{currentTemps && (
-				<div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+				<div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 mb-6">
 					<div className="flex justify-between items-center mb-4">
-						<h3 className="text-xl font-bold text-gray-800">
+						<h3 className="text-lg sm:text-xl font-bold text-gray-800">
 							{isActiveSession() ? "Current Temperatures" : "Final Temperatures"}
 						</h3>
 						<span className="text-xs text-gray-400">
 							{formatTime(new Date(currentTemps.time))}
 						</span>
 					</div>
-					<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+					<div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
 						{Object.entries(probeColors).map(([probe, color]) => {
 							const value = currentTemps[probe];
 							return (
 								<div
 									key={probe}
-									className="rounded-lg p-4 text-center"
+									className="rounded-lg p-3 sm:p-4 text-center"
 									style={{ backgroundColor: `${color}10`, borderLeft: `4px solid ${color}` }}
 								>
-									<p className="text-sm font-medium text-gray-600 mb-1">
+									<p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">
 										{probeNames[probe]}
 									</p>
 									<p
-										className="text-3xl font-bold"
+										className="text-2xl sm:text-3xl font-bold"
 										style={{ color }}
 									>
 										{value !== undefined ? `${value}°F` : "—"}
@@ -819,7 +819,7 @@ function SessionDetail() {
 										>
 											<div>
 												<div className="flex items-center gap-2">
-													<span className="text-2xl font-bold text-blue-600">
+													<span className="text-xl sm:text-2xl font-bold text-blue-600">
 														{setpoint.value}°F
 													</span>
 													{isFirst && (
@@ -937,8 +937,8 @@ function SessionDetail() {
 				</div>
 			) : (
 				<>
-					<div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-						<h3 className="text-xl font-bold text-gray-800 mb-4">
+					<div className="bg-white rounded-lg shadow-lg p-3 sm:p-6 mb-6">
+						<h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">
 							Temperature Over Time
 						</h3>
 						<ResponsiveContainer width="100%" height={400}>
@@ -1000,11 +1000,11 @@ function SessionDetail() {
 					</div>
 
 					{stats && (
-						<div className="bg-white rounded-lg shadow-lg p-6">
-							<h3 className="text-xl font-bold text-gray-800 mb-4">
+						<div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
+							<h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">
 								Temperature Statistics
 							</h3>
-							<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+							<div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
 								{Object.entries(stats).map(([probe, data]) => (
 									<div key={probe} className="border rounded-lg p-4">
 										<h4

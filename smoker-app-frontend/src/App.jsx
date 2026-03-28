@@ -66,14 +66,14 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <header className="bg-orange-600 text-white p-6 shadow-lg">
-        <h1 className="text-3xl font-bold">Smoker Tracker</h1>
-        <p className="text-orange-100">
+      <header className="bg-orange-600 text-white p-4 sm:p-6 shadow-lg">
+        <h1 className="text-2xl sm:text-3xl font-bold">Smoker Tracker</h1>
+        <p className="text-orange-100 text-sm sm:text-base">
           Track and analyze your smoking sessions
         </p>
       </header>
 
-      <div className="container mx-auto p-6">
+      <div className="container mx-auto p-3 sm:p-6">
         <Routes>
           <Route path="/" element={<SessionList />} />
           <Route path="/sessions/new" element={<CreateSession />} />
