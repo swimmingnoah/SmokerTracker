@@ -138,7 +138,7 @@ function SessionList() {
 
 	return (
 		<div>
-			<div className="flex justify-between items-center mb-6">
+			<div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
 				<h2 className="text-2xl font-bold text-gray-800">Smoke Sessions</h2>
 				<div className="flex items-center gap-3">
 					<button
@@ -153,7 +153,7 @@ function SessionList() {
 					</button>
 					<button
 						onClick={() => navigate('/sessions/new')}
-						className="bg-orange-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-orange-700 flex items-center gap-2"
+						className="bg-orange-600 text-white px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-medium hover:bg-orange-700 flex items-center gap-2 text-sm sm:text-base"
 					>
 						<svg
 							className="w-5 h-5"
@@ -168,7 +168,8 @@ function SessionList() {
 								d="M12 4v16m8-8H4"
 							/>
 						</svg>
-						Start New Session
+						<span className="hidden sm:inline">Start New Session</span>
+						<span className="sm:hidden">New Session</span>
 					</button>
 				</div>
 			</div>

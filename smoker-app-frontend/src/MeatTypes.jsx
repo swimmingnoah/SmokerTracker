@@ -105,7 +105,7 @@ function MeatTypes() {
 				</button>
 			</div>
 
-			<div className="bg-white rounded-lg shadow-lg p-8">
+			<div className="bg-white rounded-lg shadow-lg p-4 sm:p-8">
 				<h2 className="text-2xl font-bold text-gray-800 mb-6">Meat Types</h2>
 
 				{/* Add new meat type */}
@@ -146,7 +146,7 @@ function MeatTypes() {
 								{editingType === type ? (
 									<form
 										onSubmit={(e) => { e.preventDefault(); handleRename(type); }}
-										className="flex items-center gap-2 flex-1 mr-2"
+										className="flex flex-wrap items-center gap-2 flex-1 mr-2"
 									>
 										<input
 											type="text"

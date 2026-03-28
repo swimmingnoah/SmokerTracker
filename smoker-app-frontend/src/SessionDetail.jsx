@@ -40,6 +40,8 @@ function SessionDetail() {
 	const [pauses, setPauses] = useState([]);
 	const [isPaused, setIsPaused] = useState(false);
 	const [pauseLoading, setPauseLoading] = useState(false);
+	const [editingPauseIndex, setEditingPauseIndex] = useState(null);
+	const [editedPauseTime, setEditedPauseTime] = useState("");
 	const [meatTypeOptions, setMeatTypeOptions] = useState([]);
 
 	// Ref for incremental fetch — tracks last data point timestamp
@@ -79,7 +81,60 @@ function SessionDetail() {
 		fetchSetpoints();
 		fetchPauses();
 		fetchMeatTypeOptions();
+		fetchHiddenSetpoints();
 	}, [session]);
+
+	const fetchHiddenSetpoints = async () => {
+		try {
+			const encodedSessionId = encodeURIComponent(session.id);
+			const response = await apiFetch(`${CONFIG.apiUrl}/sessions/${encodedSessionId}/hidden-setpoints`);
+			if (!response.ok) return;
+			const data = await response.json();
+			setHiddenSetpoints(new Set(data.hiddenSetpoints));
+		} catch (err) {
+			console.error("Error fetching hidden setpoints:", err);
+		}
+	};
+
+	const saveHiddenSetpoints = async (newSet) => {
+		try {
+			const encodedSessionId = encodeURIComponent(session.id);
+			await apiFetch(`${CONFIG.apiUrl}/sessions/${encodedSessionId}/hidden-setpoints`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ timestamps: [...newSet] }),
+			});
+		} catch (err) {
+			console.error("Error saving hidden setpoints:", err);
+		}
+	};
+
+	const handleSavePauseTime = async (index) => {
+		try {
+			const newTime = new Date(editedPauseTime).toISOString();
+			const encodedSessionId = encodeURIComponent(session.id);
+			const response = await apiFetch(
+				`${CONFIG.apiUrl}/sessions/${encodedSessionId}/pauses/${index}`,
+				{
+					method: "PUT",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ time: newTime }),
+				}
+			);
+			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+			setEditingPauseIndex(null);
+			await fetchPauses();
+		} catch (err) {
+			alert("Failed to update pause time: " + err.message);
+		}
+	};
+
+	const toLocalDatetimeValue = (isoString) => {
+		const d = new Date(isoString);
+		const offset = d.getTimezoneOffset();
+		const local = new Date(d.getTime() - offset * 60000);
+		return local.toISOString().slice(0, 16);
+	};
 
 	const fetchMeatTypeOptions = async () => {
 		try {
@@ -527,24 +582,24 @@ function SessionDetail() {
 				</button>
 			</div>
 
-			<div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+			<div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 mb-6">
 				{/* Editable Name */}
-				<div className="flex justify-between items-center mb-2">
+				<div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-2">
 					{isEditingName ? (
-						<div className="flex items-center gap-2">
+						<div className="flex items-center gap-2 w-full sm:w-auto">
 							<input
 								type="text"
 								value={editedName}
 								onChange={(e) => setEditedName(e.target.value)}
-								className="flex-1 text-3xl font-bold text-gray-800 px-2 py-1 border-2 border-orange-500 rounded focus:outline-none"
+								className="flex-1 text-xl sm:text-3xl font-bold text-gray-800 px-2 py-1 border-2 border-orange-500 rounded focus:outline-none min-w-0"
 								autoFocus
 							/>
 							<button
 								onClick={handleSaveName}
 								disabled={savingField === "name"}
-								className="bg-orange-600 text-white px-3 py-1 rounded hover:bg-orange-700 text-sm disabled:opacity-50"
+								className="bg-orange-600 text-white px-3 py-1 rounded hover:bg-orange-700 text-sm disabled:opacity-50 whitespace-nowrap"
 							>
-								{savingField === "name" ? "Saving..." : "Save"}
+								{savingField === "name" ? "..." : "Save"}
 							</button>
 							<button
 								onClick={() => handleCancelEdit("name")}
@@ -556,7 +611,7 @@ function SessionDetail() {
 						</div>
 					) : (
 						<div className="flex items-center gap-2 group">
-							<h2 className="text-3xl font-bold text-gray-800">
+							<h2 className="text-2xl sm:text-3xl font-bold text-gray-800">
 								{session.name}
 							</h2>
 							<button
@@ -569,11 +624,11 @@ function SessionDetail() {
 					)}
 
 					{session.endTime === null ? (
-						<div className="flex items-center gap-2">
+						<div className="flex items-center gap-2 w-full sm:w-auto">
 							<button
 								onClick={handlePauseResume}
 								disabled={pauseLoading}
-								className={`px-6 py-3 rounded-lg font-medium flex items-center gap-2 disabled:opacity-50 ${
+								className={`flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50 text-sm sm:text-base ${
 									isPaused
 										? "bg-green-600 text-white hover:bg-green-700"
 										: "bg-yellow-500 text-white hover:bg-yellow-600"
@@ -583,7 +638,7 @@ function SessionDetail() {
 							</button>
 							<button
 								onClick={handleEndSession}
-								className="bg-orange-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-orange-700 flex items-center gap-2"
+								className="flex-1 sm:flex-none bg-orange-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium hover:bg-orange-700 flex items-center justify-center gap-2 text-sm sm:text-base"
 							>
 								End Smoke
 							</button>
@@ -593,10 +648,10 @@ function SessionDetail() {
 					)}
 				</div>
 
-				<div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-4">
+				<div className="flex flex-wrap gap-3 text-sm text-gray-600 mb-4">
 					{/* Editable Meat Type */}
 					{isEditingMeatType ? (
-						<div className="flex items-center gap-2">
+						<div className="flex flex-wrap items-center gap-2">
 							<select
 								value={editedMeatType}
 								onChange={(e) => setEditedMeatType(e.target.value)}
@@ -708,29 +763,29 @@ function SessionDetail() {
 
 			{/* Current Temperatures Card */}
 			{currentTemps && (
-				<div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+				<div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 mb-6">
 					<div className="flex justify-between items-center mb-4">
-						<h3 className="text-xl font-bold text-gray-800">
+						<h3 className="text-lg sm:text-xl font-bold text-gray-800">
 							{isActiveSession() ? "Current Temperatures" : "Final Temperatures"}
 						</h3>
 						<span className="text-xs text-gray-400">
 							{formatTime(new Date(currentTemps.time))}
 						</span>
 					</div>
-					<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+					<div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
 						{Object.entries(probeColors).map(([probe, color]) => {
 							const value = currentTemps[probe];
 							return (
 								<div
 									key={probe}
-									className="rounded-lg p-4 text-center"
+									className="rounded-lg p-3 sm:p-4 text-center"
 									style={{ backgroundColor: `${color}10`, borderLeft: `4px solid ${color}` }}
 								>
-									<p className="text-sm font-medium text-gray-600 mb-1">
+									<p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">
 										{probeNames[probe]}
 									</p>
 									<p
-										className="text-3xl font-bold"
+										className="text-2xl sm:text-3xl font-bold"
 										style={{ color }}
 									>
 										{value !== undefined ? `${value}°F` : "—"}
@@ -771,9 +826,9 @@ function SessionDetail() {
 							</p>
 						) : (
 							<div className="space-y-2">
-								{setpoints.filter((_, i) => !hiddenSetpoints.has(i)).map((setpoint, _filteredIndex, filteredArr) => {
-									const originalIndex = setpoints.indexOf(setpoint);
+								{setpoints.filter((sp) => !hiddenSetpoints.has(sp.time)).map((setpoint, _filteredIndex, filteredArr) => {
 									const setpointTime = new Date(setpoint.time);
+									const isFirst = setpoints[0] === setpoint;
 									// Find next visible setpoint for duration calc
 									const nextVisible = filteredArr[_filteredIndex + 1];
 									const endTime = nextVisible
@@ -788,15 +843,15 @@ function SessionDetail() {
 
 									return (
 										<div
-											key={originalIndex}
+											key={setpoint.time}
 											className="flex items-center justify-between p-3 bg-white rounded border-l-4 border-blue-500"
 										>
 											<div>
 												<div className="flex items-center gap-2">
-													<span className="text-2xl font-bold text-blue-600">
+													<span className="text-xl sm:text-2xl font-bold text-blue-600">
 														{setpoint.value}°F
 													</span>
-													{originalIndex === 0 && (
+													{isFirst && (
 														<span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
 															Initial
 														</span>
@@ -820,7 +875,11 @@ function SessionDetail() {
 													<div className="text-xs text-gray-500">duration</div>
 												</div>
 												<button
-													onClick={() => setHiddenSetpoints((prev) => new Set([...prev, originalIndex]))}
+													onClick={() => {
+														const newSet = new Set([...hiddenSetpoints, setpoint.time]);
+														setHiddenSetpoints(newSet);
+														saveHiddenSetpoints(newSet);
+													}}
 													className="text-gray-300 hover:text-red-500 transition-colors"
 													title="Hide this setpoint"
 												>
@@ -834,7 +893,10 @@ function SessionDetail() {
 								})}
 								{hiddenSetpoints.size > 0 && (
 									<button
-										onClick={() => setHiddenSetpoints(new Set())}
+										onClick={() => {
+											setHiddenSetpoints(new Set());
+											saveHiddenSetpoints(new Set());
+										}}
 										className="text-xs text-blue-600 hover:text-blue-700 font-medium mt-1"
 									>
 										Show {hiddenSetpoints.size} hidden setpoint{hiddenSetpoints.size > 1 ? 's' : ''}
@@ -865,6 +927,7 @@ function SessionDetail() {
 						} else if (isPauseEvent && !nextEvent) {
 							durationLabel = "ongoing";
 						}
+						const isEditing = editingPauseIndex === index;
 						return (
 							<div
 								key={index}
@@ -872,16 +935,47 @@ function SessionDetail() {
 									isPauseEvent ? "border-yellow-400" : "border-green-400"
 								}`}
 							>
-								<div>
+								<div className="flex-1 min-w-0">
 									<span className={`text-sm font-semibold ${isPauseEvent ? "text-yellow-700" : "text-green-700"}`}>
 										{isPauseEvent ? "Paused" : "Resumed"}
 									</span>
-									<div className="text-xs text-gray-500 mt-0.5">
-										{formatDate(event.time)}
-									</div>
+									{isEditing ? (
+										<div className="flex flex-wrap items-center gap-2 mt-1">
+											<input
+												type="datetime-local"
+												value={editedPauseTime}
+												onChange={(e) => setEditedPauseTime(e.target.value)}
+												className="px-2 py-1 border-2 border-orange-500 rounded text-xs focus:outline-none"
+												autoFocus
+											/>
+											<button
+												onClick={() => handleSavePauseTime(index)}
+												className="bg-orange-600 text-white px-2 py-1 rounded text-xs hover:bg-orange-700"
+											>
+												Save
+											</button>
+											<button
+												onClick={() => setEditingPauseIndex(null)}
+												className="bg-gray-300 text-gray-700 px-2 py-1 rounded text-xs hover:bg-gray-400"
+											>
+												Cancel
+											</button>
+										</div>
+									) : (
+										<div
+											className="text-xs text-gray-500 mt-0.5 cursor-pointer hover:text-orange-600"
+											onClick={() => {
+												setEditingPauseIndex(index);
+												setEditedPauseTime(toLocalDatetimeValue(event.time));
+											}}
+											title="Click to edit time"
+										>
+											{formatDate(event.time)}
+										</div>
+									)}
 								</div>
-								{durationLabel && (
-									<div className="text-right">
+								{durationLabel && !isEditing && (
+									<div className="text-right ml-3">
 										<div className="text-sm font-semibold text-gray-700">{durationLabel}</div>
 										<div className="text-xs text-gray-500">off smoker</div>
 									</div>
@@ -904,8 +998,8 @@ function SessionDetail() {
 				</div>
 			) : (
 				<>
-					<div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-						<h3 className="text-xl font-bold text-gray-800 mb-4">
+					<div className="bg-white rounded-lg shadow-lg p-3 sm:p-6 mb-6">
+						<h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">
 							Temperature Over Time
 						</h3>
 						<ResponsiveContainer width="100%" height={400}>
@@ -967,11 +1061,11 @@ function SessionDetail() {
 					</div>
 
 					{stats && (
-						<div className="bg-white rounded-lg shadow-lg p-6">
-							<h3 className="text-xl font-bold text-gray-800 mb-4">
+						<div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
+							<h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">
 								Temperature Statistics
 							</h3>
-							<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+							<div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
 								{Object.entries(stats).map(([probe, data]) => (
 									<div key={probe} className="border rounded-lg p-4">
 										<h4
