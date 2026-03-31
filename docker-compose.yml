@@ -7,4 +7,9 @@ services:
       - "3001:80"
     env_file:
       - .env
+    volumes:
+      - smoker-uploads:/app/uploads
     restart: unless-stopped
+
+volumes:
+  smoker-uploads:

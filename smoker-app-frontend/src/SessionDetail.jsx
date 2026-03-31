@@ -32,7 +32,11 @@ function SessionDetail() {
 	const [editedName, setEditedName] = useState(session?.name || "");
 	const [editedMeatType, setEditedMeatType] = useState(session?.meatType || "");
 	const [editedNotes, setEditedNotes] = useState(session?.notes || "");
+	const [isEditingRecipeUrl, setIsEditingRecipeUrl] = useState(false);
+	const [editedRecipeUrl, setEditedRecipeUrl] = useState(session?.recipeUrl || "");
 	const [savingField, setSavingField] = useState(null);
+	const [photos, setPhotos] = useState([]);
+	const [uploadingPhoto, setUploadingPhoto] = useState(false);
 	const [setpoints, setSetpoints] = useState([]);
 	const [loadingSetpoints, setLoadingSetpoints] = useState(false);
 	const [showSetpoints, setShowSetpoints] = useState(true);
@@ -65,6 +69,7 @@ function SessionDetail() {
 					setEditedName(found.name);
 					setEditedMeatType(found.meatType || "");
 					setEditedNotes(found.notes || "");
+					setEditedRecipeUrl(found.recipeUrl || "");
 				} else {
 					navigate("/");
 				}
@@ -82,6 +87,7 @@ function SessionDetail() {
 		fetchPauses();
 		fetchMeatTypeOptions();
 		fetchHiddenSetpoints();
+		fetchPhotos();
 	}, [session]);
 
 	const fetchHiddenSetpoints = async () => {
@@ -433,6 +439,84 @@ function SessionDetail() {
 		}
 	};
 
+	const handleSaveRecipeUrl = async () => {
+		try {
+			setSavingField("recipeUrl");
+			const response = await fetch(
+				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
+				{
+					method: "PUT",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ recipeUrl: editedRecipeUrl }),
+				}
+			);
+			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+			session.recipeUrl = editedRecipeUrl;
+			setIsEditingRecipeUrl(false);
+			setSavingField(null);
+		} catch (err) {
+			console.error("Error saving recipe URL:", err);
+			alert("Failed to save recipe URL: " + err.message);
+			setSavingField(null);
+		}
+	};
+
+	const fetchPhotos = async () => {
+		try {
+			const encodedSessionId = encodeURIComponent(session.id);
+			const response = await fetch(`${CONFIG.apiUrl}/sessions/${encodedSessionId}/photos`);
+			if (!response.ok) return;
+			const data = await response.json();
+			setPhotos(data.photos);
+		} catch (err) {
+			console.error("Error fetching photos:", err);
+		}
+	};
+
+	const handlePhotoUpload = async (e) => {
+		const file = e.target.files[0];
+		if (!file) return;
+
+		try {
+			setUploadingPhoto(true);
+			const formData = new FormData();
+			formData.append("photo", file);
+
+			const encodedSessionId = encodeURIComponent(session.id);
+			const response = await fetch(
+				`${CONFIG.apiUrl}/sessions/${encodedSessionId}/photos`,
+				{ method: "POST", body: formData }
+			);
+
+			if (!response.ok) {
+				const data = await response.json();
+				throw new Error(data.error || `HTTP error! status: ${response.status}`);
+			}
+
+			await fetchPhotos();
+		} catch (err) {
+			alert("Failed to upload photo: " + err.message);
+		} finally {
+			setUploadingPhoto(false);
+			e.target.value = "";
+		}
+	};
+
+	const handleDeletePhoto = async (filename) => {
+		if (!window.confirm("Delete this photo?")) return;
+		try {
+			const encodedSessionId = encodeURIComponent(session.id);
+			const response = await fetch(
+				`${CONFIG.apiUrl}/sessions/${encodedSessionId}/photos/${filename}`,
+				{ method: "DELETE" }
+			);
+			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+			await fetchPhotos();
+		} catch (err) {
+			alert("Failed to delete photo: " + err.message);
+		}
+	};
+
 	const handleCancelEdit = (field) => {
 		switch (field) {
 			case "name":
@@ -446,6 +530,10 @@ function SessionDetail() {
 			case "notes":
 				setEditedNotes(session.notes || "");
 				setIsEditingNotes(false);
+				break;
+			case "recipeUrl":
+				setEditedRecipeUrl(session.recipeUrl || "");
+				setIsEditingRecipeUrl(false);
 				break;
 		}
 	};
@@ -756,6 +844,107 @@ function SessionDetail() {
 					) : (
 						<p className="text-gray-700 italic whitespace-pre-wrap">
 							{session.notes || "No notes yet. Click Edit to add notes."}
+						</p>
+					)}
+				</div>
+
+				{/* Recipe URL Section */}
+				<div className="mt-4 p-4 bg-gray-50 rounded-lg">
+					<div className="flex justify-between items-center mb-2">
+						<p className="text-sm text-gray-500 font-medium">Recipe</p>
+						{!isEditingRecipeUrl && (
+							<button
+								onClick={() => setIsEditingRecipeUrl(true)}
+								className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+							>
+								Edit
+							</button>
+						)}
+					</div>
+
+					{isEditingRecipeUrl ? (
+						<div>
+							<input
+								type="url"
+								value={editedRecipeUrl}
+								onChange={(e) => setEditedRecipeUrl(e.target.value)}
+								className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+								placeholder="https://example.com/recipe"
+							/>
+							<div className="flex gap-2 mt-2">
+								<button
+									onClick={handleSaveRecipeUrl}
+									disabled={savingField === "recipeUrl"}
+									className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700 disabled:opacity-50 text-sm"
+								>
+									{savingField === "recipeUrl" ? "Saving..." : "Save"}
+								</button>
+								<button
+									onClick={() => handleCancelEdit("recipeUrl")}
+									disabled={savingField === "recipeUrl"}
+									className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 disabled:opacity-50 text-sm"
+								>
+									Cancel
+								</button>
+							</div>
+						</div>
+					) : session.recipeUrl ? (
+						<a
+							href={session.recipeUrl}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="text-orange-600 hover:text-orange-700 underline text-sm break-all"
+						>
+							{session.recipeUrl}
+						</a>
+					) : (
+						<p className="text-gray-700 italic text-sm">
+							No recipe link. Click Edit to add one.
+						</p>
+					)}
+				</div>
+
+				{/* Photos Section */}
+				<div className="mt-4 p-4 bg-gray-50 rounded-lg">
+					<div className="flex justify-between items-center mb-3">
+						<p className="text-sm text-gray-500 font-medium">Photos</p>
+						<label className="text-sm text-orange-600 hover:text-orange-700 font-medium cursor-pointer">
+							{uploadingPhoto ? "Uploading..." : "Add Photo"}
+							<input
+								type="file"
+								accept="image/*"
+								capture="environment"
+								onChange={handlePhotoUpload}
+								disabled={uploadingPhoto}
+								className="hidden"
+							/>
+						</label>
+					</div>
+
+					{photos.length > 0 ? (
+						<div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+							{photos.map((photo) => (
+								<div key={photo.filename} className="relative group">
+									<a href={photo.url} target="_blank" rel="noopener noreferrer">
+										<img
+											src={photo.url}
+											alt="Session photo"
+											className="w-full h-32 sm:h-40 object-cover rounded-lg"
+										/>
+									</a>
+									<button
+										onClick={() => handleDeletePhoto(photo.filename)}
+										className="absolute top-1 right-1 bg-black bg-opacity-50 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+										title="Delete photo"
+									>
+										×
+									</button>
+								</div>
+							))}
+						</div>
+					) : (
+						<p className="text-gray-700 italic text-sm">
+							No photos yet. Tap "Add Photo" to upload.
 						</p>
 					)}
 				</div>
