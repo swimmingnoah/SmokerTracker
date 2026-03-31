@@ -1,9 +1,10 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 from datetime import datetime, timedelta
 from functools import wraps
+from werkzeug.utils import secure_filename
 import os
 import re
 import uuid
@@ -33,6 +34,15 @@ write_api = influx_client.write_api(write_options=SYNCHRONOUS)
 MAX_NAME_LENGTH = 255
 MAX_NOTES_LENGTH = 5000
 MAX_MEAT_TYPE_LENGTH = 100
+MAX_URL_LENGTH = 2048
+
+# Photo upload config
+UPLOAD_DIR = os.getenv('UPLOAD_DIR', '/app/uploads/photos')
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+MAX_PHOTO_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_PHOTOS_PER_SESSION = 20
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ISO 8601 timestamp pattern
 ISO_TIMESTAMP_RE = re.compile(
@@ -114,6 +124,7 @@ def create_session():
         name = data.get('name', '').strip()[:MAX_NAME_LENGTH]
         meat_type = data.get('meatType', '').strip()[:MAX_MEAT_TYPE_LENGTH]
         notes = data.get('notes', '').strip()[:MAX_NOTES_LENGTH]
+        recipe_url = data.get('recipeUrl', '').strip()[:MAX_URL_LENGTH]
 
         if not name:
             return safe_error('name required', 400)
@@ -148,6 +159,16 @@ def create_session():
                 .time(now),
         ]
 
+        if recipe_url:
+            points.append(
+                Point("text")
+                    .tag("domain", "input_text")
+                    .tag("entity_id", "smoke_session_recipe_url")
+                    .tag("current_session_id", session_id)
+                    .field("state", recipe_url)
+                    .time(now)
+            )
+
         write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=points)
 
         now_iso = now.isoformat() + 'Z'
@@ -157,6 +178,7 @@ def create_session():
                 'name': name,
                 'meatType': meat_type,
                 'notes': notes,
+                'recipeUrl': recipe_url,
                 'startTime': now_iso,
                 'endTime': None,
             }
@@ -293,7 +315,7 @@ from(bucket: "{INFLUX_BUCKET}")
   |> range(start: -365d)
   |> filter(fn: (r) => r["domain"] == "input_text")
   |> filter(fn: (r) => r["_field"] == "state")
-  |> filter(fn: (r) => r["entity_id"] == "current_session_id" or r["entity_id"] == "smoke_session_name" or r["entity_id"] == "meat_type" or r["entity_id"] == "smoke_session_notes")
+  |> filter(fn: (r) => r["entity_id"] == "current_session_id" or r["entity_id"] == "smoke_session_name" or r["entity_id"] == "meat_type" or r["entity_id"] == "smoke_session_notes" or r["entity_id"] == "smoke_session_recipe_url")
         '''
 
         tables = query_api.query(query, org=INFLUX_ORG)
@@ -766,6 +788,17 @@ def update_session(session_id):
                     .time(now)
             )
 
+        if 'recipeUrl' in data:
+            recipe_url = data['recipeUrl'].strip()[:MAX_URL_LENGTH]
+            points.append(
+                Point("text")
+                    .tag("domain", "input_text")
+                    .tag("entity_id", "smoke_session_recipe_url")
+                    .tag("current_session_id", session_id)
+                    .field("state", recipe_url)
+                    .time(now)
+            )
+
         if points:
             write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=points)
 
@@ -857,6 +890,119 @@ def update_hidden_setpoints(session_id):
     except Exception as e:
         print(f"Error updating hidden setpoints: {e}")
         return safe_error('Failed to update hidden setpoints')
+
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@app.route('/api/sessions/<session_id>/photos', methods=['GET'])
+def get_session_photos(session_id):
+    """List photos for a session"""
+    try:
+        if not validate_session_id(session_id):
+            return safe_error('Invalid session ID', 400)
+
+        session_dir = os.path.join(UPLOAD_DIR, session_id)
+        if not os.path.exists(session_dir):
+            return jsonify({'photos': []})
+
+        photos = []
+        for filename in sorted(os.listdir(session_dir)):
+            if allowed_file(filename):
+                photos.append({
+                    'filename': filename,
+                    'url': f'/api/sessions/{session_id}/photos/{filename}',
+                })
+
+        return jsonify({'photos': photos})
+
+    except Exception as e:
+        print(f"Error listing photos: {e}")
+        return safe_error('Failed to list photos')
+
+
+@app.route('/api/sessions/<session_id>/photos/<filename>', methods=['GET'])
+def serve_photo(session_id, filename):
+    """Serve a photo file"""
+    if not validate_session_id(session_id):
+        return safe_error('Invalid session ID', 400)
+
+    safe_name = secure_filename(filename)
+    session_dir = os.path.join(UPLOAD_DIR, session_id)
+    return send_from_directory(session_dir, safe_name)
+
+
+@app.route('/api/sessions/<session_id>/photos', methods=['POST'])
+@require_api_key
+def upload_photo(session_id):
+    """Upload a photo for a session"""
+    try:
+        if not validate_session_id(session_id):
+            return safe_error('Invalid session ID', 400)
+
+        if 'photo' not in request.files:
+            return safe_error('No photo file provided', 400)
+
+        file = request.files['photo']
+        if file.filename == '':
+            return safe_error('No file selected', 400)
+
+        if not allowed_file(file.filename):
+            return safe_error('File type not allowed. Use: png, jpg, jpeg, gif, webp', 400)
+
+        # Check file size
+        file.seek(0, 2)
+        size = file.tell()
+        file.seek(0)
+        if size > MAX_PHOTO_SIZE:
+            return safe_error('File too large. Maximum 10MB', 400)
+
+        # Check photo count
+        session_dir = os.path.join(UPLOAD_DIR, session_id)
+        os.makedirs(session_dir, exist_ok=True)
+        existing = [f for f in os.listdir(session_dir) if allowed_file(f)] if os.path.exists(session_dir) else []
+        if len(existing) >= MAX_PHOTOS_PER_SESSION:
+            return safe_error(f'Maximum {MAX_PHOTOS_PER_SESSION} photos per session', 400)
+
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        filename = f"{uuid.uuid4()}.{ext}"
+        filepath = os.path.join(session_dir, filename)
+        file.save(filepath)
+
+        return jsonify({
+            'success': True,
+            'photo': {
+                'filename': filename,
+                'url': f'/api/sessions/{session_id}/photos/{filename}',
+            }
+        })
+
+    except Exception as e:
+        print(f"Error uploading photo: {e}")
+        return safe_error('Failed to upload photo')
+
+
+@app.route('/api/sessions/<session_id>/photos/<filename>', methods=['DELETE'])
+@require_api_key
+def delete_photo(session_id, filename):
+    """Delete a photo"""
+    try:
+        if not validate_session_id(session_id):
+            return safe_error('Invalid session ID', 400)
+
+        safe_name = secure_filename(filename)
+        filepath = os.path.join(UPLOAD_DIR, session_id, safe_name)
+
+        if not os.path.exists(filepath):
+            return safe_error('Photo not found', 404)
+
+        os.remove(filepath)
+        return jsonify({'success': True, 'message': 'Photo deleted'})
+
+    except Exception as e:
+        print(f"Error deleting photo: {e}")
+        return safe_error('Failed to delete photo')
 
 
 # --- Helper functions ---
@@ -958,6 +1104,7 @@ def process_sessions(all_data, hidden_sessions, include_hidden=False, ended_sess
                 'name': '',
                 'meatType': '',
                 'notes': '',
+                'recipeUrl': '',
                 'startTime': point['time'],
                 'endTime': point['time'],
             }
@@ -971,6 +1118,8 @@ def process_sessions(all_data, hidden_sessions, include_hidden=False, ended_sess
             session['meatType'] = point['value']
         if point.get('entityId') == 'smoke_session_notes' and point.get('value'):
             session['notes'] = point['value']
+        if point.get('entityId') == 'smoke_session_recipe_url' and point.get('value'):
+            session['recipeUrl'] = point['value']
 
         # Update time range
         point_time = point['time']

@@ -7,6 +7,7 @@ function CreateSession() {
 	const [name, setName] = useState("");
 	const [meatType, setMeatType] = useState("");
 	const [notes, setNotes] = useState("");
+	const [recipeUrl, setRecipeUrl] = useState("");
 	const [creating, setCreating] = useState(false);
 	const [meatTypeOptions, setMeatTypeOptions] = useState([]);
 
@@ -49,6 +50,7 @@ function CreateSession() {
 					name: name.trim(),
 					meatType: meatType.trim(),
 					notes: notes.trim(),
+					recipeUrl: recipeUrl.trim(),
 				}),
 			});
 
@@ -123,6 +125,19 @@ function CreateSession() {
 						>
 							Manage Meat Types
 						</button>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-2">
+							Recipe URL (Optional)
+						</label>
+						<input
+							type="url"
+							value={recipeUrl}
+							onChange={(e) => setRecipeUrl(e.target.value)}
+							className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+							placeholder="https://example.com/recipe"
+						/>
 					</div>
 
 					<div>
