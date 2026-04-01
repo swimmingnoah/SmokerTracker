@@ -8,6 +8,8 @@ function CreateSession() {
 	const [meatType, setMeatType] = useState("");
 	const [notes, setNotes] = useState("");
 	const [recipeUrl, setRecipeUrl] = useState("");
+	const [spicesList, setSpicesList] = useState([]);
+	const [newSpice, setNewSpice] = useState("");
 	const [creating, setCreating] = useState(false);
 	const [meatTypeOptions, setMeatTypeOptions] = useState([]);
 
@@ -51,6 +53,7 @@ function CreateSession() {
 					meatType: meatType.trim(),
 					notes: notes.trim(),
 					recipeUrl: recipeUrl.trim(),
+					spices: spicesList.join(", "),
 				}),
 			});
 
@@ -138,6 +141,64 @@ function CreateSession() {
 							className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
 							placeholder="https://example.com/recipe"
 						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-2">
+							Spices / Rub (Optional)
+						</label>
+						{spicesList.length > 0 && (
+							<div className="flex flex-wrap gap-2 mb-2">
+								{spicesList.map((spice) => (
+									<span
+										key={spice}
+										className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-medium"
+									>
+										{spice}
+										<button
+											type="button"
+											onClick={() => setSpicesList(spicesList.filter((s) => s !== spice))}
+											className="text-amber-600 hover:text-red-600 ml-0.5"
+										>
+											×
+										</button>
+									</span>
+								))}
+							</div>
+						)}
+						<div className="flex gap-2">
+							<input
+								type="text"
+								value={newSpice}
+								onChange={(e) => setNewSpice(e.target.value)}
+								onKeyDown={(e) => {
+									if (e.key === "Enter") {
+										e.preventDefault();
+										const spice = newSpice.trim();
+										if (spice && !spicesList.includes(spice)) {
+											setSpicesList([...spicesList, spice]);
+											setNewSpice("");
+										}
+									}
+								}}
+								className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+								placeholder="Type a spice and press Enter..."
+							/>
+							<button
+								type="button"
+								onClick={() => {
+									const spice = newSpice.trim();
+									if (spice && !spicesList.includes(spice)) {
+										setSpicesList([...spicesList, spice]);
+										setNewSpice("");
+									}
+								}}
+								disabled={!newSpice.trim()}
+								className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 disabled:opacity-50"
+							>
+								Add
+							</button>
+						</div>
 					</div>
 
 					<div>
