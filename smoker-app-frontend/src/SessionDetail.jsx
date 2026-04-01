@@ -34,6 +34,11 @@ function SessionDetail() {
 	const [editedNotes, setEditedNotes] = useState(session?.notes || "");
 	const [isEditingRecipeUrl, setIsEditingRecipeUrl] = useState(false);
 	const [editedRecipeUrl, setEditedRecipeUrl] = useState(session?.recipeUrl || "");
+	const [isEditingSpices, setIsEditingSpices] = useState(false);
+	const [spicesList, setSpicesList] = useState(
+		session?.spices ? session.spices.split(",").map((s) => s.trim()).filter(Boolean) : []
+	);
+	const [newSpice, setNewSpice] = useState("");
 	const [savingField, setSavingField] = useState(null);
 	const [photos, setPhotos] = useState([]);
 	const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -70,6 +75,7 @@ function SessionDetail() {
 					setEditedMeatType(found.meatType || "");
 					setEditedNotes(found.notes || "");
 					setEditedRecipeUrl(found.recipeUrl || "");
+					setSpicesList(found.spices ? found.spices.split(",").map((s) => s.trim()).filter(Boolean) : []);
 				} else {
 					navigate("/");
 				}
@@ -459,6 +465,44 @@ function SessionDetail() {
 			alert("Failed to save recipe URL: " + err.message);
 			setSavingField(null);
 		}
+	};
+
+	const handleSaveSpices = async (updatedList) => {
+		const spicesStr = updatedList.join(", ");
+		try {
+			const response = await fetch(
+				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
+				{
+					method: "PUT",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ spices: spicesStr }),
+				}
+			);
+			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+			session.spices = spicesStr;
+		} catch (err) {
+			console.error("Error saving spices:", err);
+			alert("Failed to save spices: " + err.message);
+		}
+	};
+
+	const handleAddSpice = () => {
+		const spice = newSpice.trim();
+		if (!spice) return;
+		if (spicesList.includes(spice)) {
+			setNewSpice("");
+			return;
+		}
+		const updated = [...spicesList, spice];
+		setSpicesList(updated);
+		setNewSpice("");
+		handleSaveSpices(updated);
+	};
+
+	const handleRemoveSpice = (spice) => {
+		const updated = spicesList.filter((s) => s !== spice);
+		setSpicesList(updated);
+		handleSaveSpices(updated);
 	};
 
 	const fetchPhotos = async () => {
@@ -902,6 +946,83 @@ function SessionDetail() {
 							No recipe link. Click Edit to add one.
 						</p>
 					)}
+				</div>
+
+				{/* Spices Section */}
+				<div className="mt-4 p-4 bg-gray-50 rounded-lg">
+					<div className="flex justify-between items-center mb-2">
+						<p className="text-sm text-gray-500 font-medium">Spices / Rub</p>
+						{!isEditingSpices && (
+							<button
+								onClick={() => setIsEditingSpices(true)}
+								className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+							>
+								Edit
+							</button>
+						)}
+					</div>
+
+					{spicesList.length > 0 && (
+						<div className="flex flex-wrap gap-2 mb-2">
+							{spicesList.map((spice) => (
+								<span
+									key={spice}
+									className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-medium"
+								>
+									{spice}
+									{isEditingSpices && (
+										<button
+											onClick={() => handleRemoveSpice(spice)}
+											className="text-amber-600 hover:text-red-600 ml-0.5"
+										>
+											×
+										</button>
+									)}
+								</span>
+							))}
+						</div>
+					)}
+
+					{isEditingSpices ? (
+						<div>
+							<div className="flex gap-2">
+								<input
+									type="text"
+									value={newSpice}
+									onChange={(e) => setNewSpice(e.target.value)}
+									onKeyDown={(e) => {
+										if (e.key === "Enter") {
+											e.preventDefault();
+											handleAddSpice();
+										}
+									}}
+									className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+									placeholder="Type a spice and press Enter..."
+									autoFocus
+								/>
+								<button
+									onClick={handleAddSpice}
+									disabled={!newSpice.trim()}
+									className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 disabled:opacity-50 text-sm"
+								>
+									Add
+								</button>
+							</div>
+							<button
+								onClick={() => {
+									setIsEditingSpices(false);
+									setNewSpice("");
+								}}
+								className="text-sm text-gray-500 hover:text-gray-700 mt-2"
+							>
+								Done
+							</button>
+						</div>
+					) : spicesList.length === 0 ? (
+						<p className="text-gray-700 italic text-sm">
+							No spices listed. Click Edit to add.
+						</p>
+					) : null}
 				</div>
 
 				{/* Photos Section */}

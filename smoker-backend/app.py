@@ -125,6 +125,7 @@ def create_session():
         meat_type = data.get('meatType', '').strip()[:MAX_MEAT_TYPE_LENGTH]
         notes = data.get('notes', '').strip()[:MAX_NOTES_LENGTH]
         recipe_url = data.get('recipeUrl', '').strip()[:MAX_URL_LENGTH]
+        spices = data.get('spices', '').strip()[:MAX_NOTES_LENGTH]
 
         if not name:
             return safe_error('name required', 400)
@@ -169,6 +170,16 @@ def create_session():
                     .time(now)
             )
 
+        if spices:
+            points.append(
+                Point("text")
+                    .tag("domain", "input_text")
+                    .tag("entity_id", "smoke_session_spices")
+                    .tag("current_session_id", session_id)
+                    .field("state", spices)
+                    .time(now)
+            )
+
         write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=points)
 
         now_iso = now.isoformat() + 'Z'
@@ -179,6 +190,7 @@ def create_session():
                 'meatType': meat_type,
                 'notes': notes,
                 'recipeUrl': recipe_url,
+                'spices': spices,
                 'startTime': now_iso,
                 'endTime': None,
             }
@@ -315,7 +327,7 @@ from(bucket: "{INFLUX_BUCKET}")
   |> range(start: -365d)
   |> filter(fn: (r) => r["domain"] == "input_text")
   |> filter(fn: (r) => r["_field"] == "state")
-  |> filter(fn: (r) => r["entity_id"] == "current_session_id" or r["entity_id"] == "smoke_session_name" or r["entity_id"] == "meat_type" or r["entity_id"] == "smoke_session_notes" or r["entity_id"] == "smoke_session_recipe_url")
+  |> filter(fn: (r) => r["entity_id"] == "current_session_id" or r["entity_id"] == "smoke_session_name" or r["entity_id"] == "meat_type" or r["entity_id"] == "smoke_session_notes" or r["entity_id"] == "smoke_session_recipe_url" or r["entity_id"] == "smoke_session_spices")
         '''
 
         tables = query_api.query(query, org=INFLUX_ORG)
@@ -799,6 +811,17 @@ def update_session(session_id):
                     .time(now)
             )
 
+        if 'spices' in data:
+            spices = data['spices'].strip()[:MAX_NOTES_LENGTH]
+            points.append(
+                Point("text")
+                    .tag("domain", "input_text")
+                    .tag("entity_id", "smoke_session_spices")
+                    .tag("current_session_id", session_id)
+                    .field("state", spices)
+                    .time(now)
+            )
+
         if points:
             write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=points)
 
@@ -1105,6 +1128,7 @@ def process_sessions(all_data, hidden_sessions, include_hidden=False, ended_sess
                 'meatType': '',
                 'notes': '',
                 'recipeUrl': '',
+                'spices': '',
                 'startTime': point['time'],
                 'endTime': point['time'],
             }
@@ -1120,6 +1144,8 @@ def process_sessions(all_data, hidden_sessions, include_hidden=False, ended_sess
             session['notes'] = point['value']
         if point.get('entityId') == 'smoke_session_recipe_url' and point.get('value'):
             session['recipeUrl'] = point['value']
+        if point.get('entityId') == 'smoke_session_spices' and point.get('value'):
+            session['spices'] = point['value']
 
         # Update time range
         point_time = point['time']
@@ -1144,6 +1170,8 @@ def process_sessions(all_data, hidden_sessions, include_hidden=False, ended_sess
             'name': session['name'] or 'Unnamed Session',
             'meatType': session['meatType'] or 'N/A',
             'notes': session['notes'] or '',
+            'recipeUrl': session['recipeUrl'] or '',
+            'spices': session['spices'] or '',
             'startTime': session['startTime'],
             'endTime': end_time,
             'hidden': is_hidden,
