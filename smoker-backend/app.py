@@ -126,6 +126,7 @@ def create_session():
         notes = data.get('notes', '').strip()[:MAX_NOTES_LENGTH]
         recipe_url = data.get('recipeUrl', '').strip()[:MAX_URL_LENGTH]
         spices = data.get('spices', '').strip()[:MAX_NOTES_LENGTH]
+        weight = data.get('weight', '').strip()[:MAX_MEAT_TYPE_LENGTH]
 
         if not name:
             return safe_error('name required', 400)
@@ -180,6 +181,16 @@ def create_session():
                     .time(now)
             )
 
+        if weight:
+            points.append(
+                Point("text")
+                    .tag("domain", "input_text")
+                    .tag("entity_id", "smoke_session_weight")
+                    .tag("current_session_id", session_id)
+                    .field("state", weight)
+                    .time(now)
+            )
+
         write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=points)
 
         now_iso = now.isoformat() + 'Z'
@@ -191,6 +202,7 @@ def create_session():
                 'notes': notes,
                 'recipeUrl': recipe_url,
                 'spices': spices,
+                'weight': weight,
                 'startTime': now_iso,
                 'endTime': None,
             }
@@ -327,7 +339,7 @@ from(bucket: "{INFLUX_BUCKET}")
   |> range(start: -365d)
   |> filter(fn: (r) => r["domain"] == "input_text")
   |> filter(fn: (r) => r["_field"] == "state")
-  |> filter(fn: (r) => r["entity_id"] == "current_session_id" or r["entity_id"] == "smoke_session_name" or r["entity_id"] == "meat_type" or r["entity_id"] == "smoke_session_notes" or r["entity_id"] == "smoke_session_recipe_url" or r["entity_id"] == "smoke_session_spices")
+  |> filter(fn: (r) => r["entity_id"] == "current_session_id" or r["entity_id"] == "smoke_session_name" or r["entity_id"] == "meat_type" or r["entity_id"] == "smoke_session_notes" or r["entity_id"] == "smoke_session_recipe_url" or r["entity_id"] == "smoke_session_spices" or r["entity_id"] == "smoke_session_weight")
         '''
 
         tables = query_api.query(query, org=INFLUX_ORG)
@@ -822,6 +834,17 @@ def update_session(session_id):
                     .time(now)
             )
 
+        if 'weight' in data:
+            weight = data['weight'].strip()[:MAX_MEAT_TYPE_LENGTH]
+            points.append(
+                Point("text")
+                    .tag("domain", "input_text")
+                    .tag("entity_id", "smoke_session_weight")
+                    .tag("current_session_id", session_id)
+                    .field("state", weight)
+                    .time(now)
+            )
+
         if points:
             write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=points)
 
@@ -913,6 +936,79 @@ def update_hidden_setpoints(session_id):
     except Exception as e:
         print(f"Error updating hidden setpoints: {e}")
         return safe_error('Failed to update hidden setpoints')
+
+
+@app.route('/api/sessions/<session_id>/probe-settings', methods=['GET'])
+def get_probe_settings(session_id):
+    """Get per-session probe settings (hidden probes, custom names)"""
+    try:
+        if not validate_session_id(session_id):
+            return safe_error('Invalid session ID', 400)
+
+        hidden = get_session_setting(session_id, 'hidden_probes')
+        names = get_session_setting(session_id, 'probe_names')
+
+        hidden_list = [s.strip() for s in hidden.split(',') if s.strip()] if hidden else []
+        names_map = {}
+        if names:
+            for pair in names.split('|'):
+                if ':' in pair:
+                    key, val = pair.split(':', 1)
+                    names_map[key.strip()] = val.strip()
+
+        return jsonify({'hiddenProbes': hidden_list, 'probeNames': names_map})
+
+    except Exception as e:
+        print(f"Error fetching probe settings: {e}")
+        return safe_error('Failed to fetch probe settings')
+
+
+@app.route('/api/sessions/<session_id>/probe-settings', methods=['PUT'])
+@require_api_key
+def update_probe_settings(session_id):
+    """Update per-session probe settings"""
+    try:
+        if not validate_session_id(session_id):
+            return safe_error('Invalid session ID', 400)
+
+        data = request.get_json()
+        if not data:
+            return safe_error('Invalid request body', 400)
+
+        now = datetime.utcnow()
+        points = []
+
+        if 'hiddenProbes' in data:
+            hidden_list = data['hiddenProbes']
+            if not isinstance(hidden_list, list):
+                return safe_error('hiddenProbes must be a list', 400)
+            point = Point("session_probe_settings") \
+                .tag("session_id", session_id) \
+                .tag("setting", "hidden_probes") \
+                .field("value", ','.join(hidden_list)) \
+                .time(now)
+            points.append(point)
+
+        if 'probeNames' in data:
+            names_map = data['probeNames']
+            if not isinstance(names_map, dict):
+                return safe_error('probeNames must be an object', 400)
+            encoded = '|'.join(f"{k}:{v}" for k, v in names_map.items())
+            point = Point("session_probe_settings") \
+                .tag("session_id", session_id) \
+                .tag("setting", "probe_names") \
+                .field("value", encoded) \
+                .time(now)
+            points.append(point)
+
+        if points:
+            write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=points)
+
+        return jsonify({'success': True})
+
+    except Exception as e:
+        print(f"Error updating probe settings: {e}")
+        return safe_error('Failed to update probe settings')
 
 
 def allowed_file(filename):
@@ -1030,6 +1126,32 @@ def delete_photo(session_id, filename):
 
 # --- Helper functions ---
 
+def get_session_setting(session_id, setting_name):
+    """Get a per-session setting from InfluxDB"""
+    try:
+        query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -365d)
+  |> filter(fn: (r) => r["_measurement"] == "session_probe_settings")
+  |> filter(fn: (r) => r["session_id"] == "{session_id}")
+  |> filter(fn: (r) => r["setting"] == "{setting_name}")
+  |> filter(fn: (r) => r["_field"] == "value")
+  |> last()
+        '''
+
+        tables = query_api.query(query, org=INFLUX_ORG)
+
+        for table in tables:
+            for record in table.records:
+                return record.get_value() or ''
+
+        return ''
+
+    except Exception as e:
+        print(f"Error getting session setting {setting_name}: {e}")
+        return ''
+
+
 def get_hidden_sessions_list():
     """Helper function to get the list of hidden session IDs from InfluxDB"""
     try:
@@ -1129,6 +1251,7 @@ def process_sessions(all_data, hidden_sessions, include_hidden=False, ended_sess
                 'notes': '',
                 'recipeUrl': '',
                 'spices': '',
+                'weight': '',
                 'startTime': point['time'],
                 'endTime': point['time'],
             }
@@ -1146,6 +1269,8 @@ def process_sessions(all_data, hidden_sessions, include_hidden=False, ended_sess
             session['recipeUrl'] = point['value']
         if point.get('entityId') == 'smoke_session_spices' and point.get('value'):
             session['spices'] = point['value']
+        if point.get('entityId') == 'smoke_session_weight' and point.get('value'):
+            session['weight'] = point['value']
 
         # Update time range
         point_time = point['time']
@@ -1172,6 +1297,7 @@ def process_sessions(all_data, hidden_sessions, include_hidden=False, ended_sess
             'notes': session['notes'] or '',
             'recipeUrl': session['recipeUrl'] or '',
             'spices': session['spices'] or '',
+            'weight': session['weight'] or '',
             'startTime': session['startTime'],
             'endTime': end_time,
             'hidden': is_hidden,

@@ -39,7 +39,13 @@ function SessionDetail() {
 		session?.spices ? session.spices.split(",").map((s) => s.trim()).filter(Boolean) : []
 	);
 	const [newSpice, setNewSpice] = useState("");
+	const [isEditingWeight, setIsEditingWeight] = useState(false);
+	const [editedWeight, setEditedWeight] = useState(session?.weight || "");
 	const [savingField, setSavingField] = useState(null);
+	const [hiddenProbes, setHiddenProbes] = useState(new Set());
+	const [customProbeNames, setCustomProbeNames] = useState({});
+	const [editingProbeName, setEditingProbeName] = useState(null);
+	const [editedProbeName, setEditedProbeName] = useState("");
 	const [photos, setPhotos] = useState([]);
 	const [uploadingPhoto, setUploadingPhoto] = useState(false);
 	const [setpoints, setSetpoints] = useState([]);
@@ -76,6 +82,7 @@ function SessionDetail() {
 					setEditedNotes(found.notes || "");
 					setEditedRecipeUrl(found.recipeUrl || "");
 					setSpicesList(found.spices ? found.spices.split(",").map((s) => s.trim()).filter(Boolean) : []);
+					setEditedWeight(found.weight || "");
 				} else {
 					navigate("/");
 				}
@@ -94,6 +101,7 @@ function SessionDetail() {
 		fetchMeatTypeOptions();
 		fetchHiddenSetpoints();
 		fetchPhotos();
+		fetchProbeSettings();
 	}, [session]);
 
 	const fetchHiddenSetpoints = async () => {
@@ -467,6 +475,82 @@ function SessionDetail() {
 		}
 	};
 
+	const handleSaveWeight = async () => {
+		try {
+			setSavingField("weight");
+			const response = await fetch(
+				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
+				{
+					method: "PUT",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ weight: editedWeight }),
+				}
+			);
+			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+			session.weight = editedWeight;
+			setIsEditingWeight(false);
+			setSavingField(null);
+		} catch (err) {
+			console.error("Error saving weight:", err);
+			alert("Failed to save weight: " + err.message);
+			setSavingField(null);
+		}
+	};
+
+	const fetchProbeSettings = async () => {
+		try {
+			const encodedSessionId = encodeURIComponent(session.id);
+			const response = await fetch(`${CONFIG.apiUrl}/sessions/${encodedSessionId}/probe-settings`);
+			if (!response.ok) return;
+			const data = await response.json();
+			setHiddenProbes(new Set(data.hiddenProbes || []));
+			setCustomProbeNames(data.probeNames || {});
+		} catch (err) {
+			console.error("Error fetching probe settings:", err);
+		}
+	};
+
+	const saveProbeSettings = async (hidden, names) => {
+		try {
+			const encodedSessionId = encodeURIComponent(session.id);
+			await fetch(`${CONFIG.apiUrl}/sessions/${encodedSessionId}/probe-settings`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					hiddenProbes: [...hidden],
+					probeNames: names,
+				}),
+			});
+		} catch (err) {
+			console.error("Error saving probe settings:", err);
+		}
+	};
+
+	const toggleProbeHidden = (probe) => {
+		const updated = new Set(hiddenProbes);
+		if (updated.has(probe)) {
+			updated.delete(probe);
+		} else {
+			updated.add(probe);
+		}
+		setHiddenProbes(updated);
+		saveProbeSettings(updated, customProbeNames);
+	};
+
+	const handleSaveProbeName = (probe) => {
+		const updated = { ...customProbeNames, [probe]: editedProbeName.trim() };
+		if (!editedProbeName.trim()) {
+			delete updated[probe];
+		}
+		setCustomProbeNames(updated);
+		setEditingProbeName(null);
+		saveProbeSettings(hiddenProbes, updated);
+	};
+
+	const getProbeDisplayName = (probe) => {
+		return customProbeNames[probe] || probeNames[probe];
+	};
+
 	const handleSaveSpices = async (updatedList) => {
 		const spicesStr = updatedList.join(", ");
 		try {
@@ -578,6 +662,10 @@ function SessionDetail() {
 			case "recipeUrl":
 				setEditedRecipeUrl(session.recipeUrl || "");
 				setIsEditingRecipeUrl(false);
+				break;
+			case "weight":
+				setEditedWeight(session.weight || "");
+				setIsEditingWeight(false);
 				break;
 		}
 	};
@@ -824,6 +912,46 @@ function SessionDetail() {
 					)}
 
 					<span>Duration: {calculateDuration()}</span>
+
+					{/* Weight */}
+					{isEditingWeight ? (
+						<div className="flex items-center gap-2">
+							<input
+								type="text"
+								value={editedWeight}
+								onChange={(e) => setEditedWeight(e.target.value)}
+								className="px-3 py-1 border-2 border-orange-500 rounded focus:outline-none text-sm w-28"
+								placeholder="e.g. 12 lbs"
+								autoFocus
+							/>
+							<button
+								onClick={handleSaveWeight}
+								disabled={savingField === "weight"}
+								className="bg-orange-600 text-white px-2 py-1 rounded hover:bg-orange-700 text-xs disabled:opacity-50"
+							>
+								{savingField === "weight" ? "..." : "Save"}
+							</button>
+							<button
+								onClick={() => handleCancelEdit("weight")}
+								disabled={savingField === "weight"}
+								className="bg-gray-300 text-gray-700 px-2 py-1 rounded hover:bg-gray-400 text-xs disabled:opacity-50"
+							>
+								Cancel
+							</button>
+						</div>
+					) : (
+						<div className="flex items-center gap-1 group">
+							<span className="text-gray-600">
+								{session.weight ? `Weight: ${session.weight}` : ""}
+							</span>
+							<button
+								onClick={() => setIsEditingWeight(true)}
+								className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-orange-600 text-xs"
+							>
+								{session.weight ? "✏️" : "+ Weight"}
+							</button>
+						</div>
+					)}
 				</div>
 
 				<div className="grid md:grid-cols-2 gap-4 mb-4">
@@ -1083,27 +1211,72 @@ function SessionDetail() {
 						</span>
 					</div>
 					<div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-						{Object.entries(probeColors).map(([probe, color]) => {
+						{Object.entries(probeColors)
+							.filter(([probe]) => !hiddenProbes.has(probe))
+							.map(([probe, color]) => {
 							const value = currentTemps[probe];
 							return (
 								<div
 									key={probe}
-									className="rounded-lg p-3 sm:p-4 text-center"
+									className="rounded-lg p-3 sm:p-4 text-center relative group"
 									style={{ backgroundColor: `${color}10`, borderLeft: `4px solid ${color}` }}
 								>
-									<p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">
-										{probeNames[probe]}
-									</p>
+									{editingProbeName === probe ? (
+										<div className="flex items-center gap-1 mb-1">
+											<input
+												type="text"
+												value={editedProbeName}
+												onChange={(e) => setEditedProbeName(e.target.value)}
+												onKeyDown={(e) => {
+													if (e.key === "Enter") handleSaveProbeName(probe);
+													if (e.key === "Escape") setEditingProbeName(null);
+												}}
+												className="w-full px-1 py-0.5 text-xs border border-orange-500 rounded focus:outline-none text-center"
+												autoFocus
+											/>
+										</div>
+									) : (
+										<p
+											className="text-xs sm:text-sm font-medium text-gray-600 mb-1 cursor-pointer hover:text-orange-600"
+											onClick={() => {
+												setEditingProbeName(probe);
+												setEditedProbeName(customProbeNames[probe] || probeNames[probe]);
+											}}
+											title="Click to rename"
+										>
+											{getProbeDisplayName(probe)}
+										</p>
+									)}
 									<p
 										className="text-2xl sm:text-3xl font-bold"
 										style={{ color }}
 									>
 										{value !== undefined ? `${value}°F` : "—"}
 									</p>
+									<button
+										onClick={() => toggleProbeHidden(probe)}
+										className="absolute top-1 right-1 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+										title="Hide this probe"
+									>
+										<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+										</svg>
+									</button>
 								</div>
 							);
 						})}
 					</div>
+					{hiddenProbes.size > 0 && (
+						<button
+							onClick={() => {
+								setHiddenProbes(new Set());
+								saveProbeSettings(new Set(), customProbeNames);
+							}}
+							className="text-xs text-blue-600 hover:text-blue-700 font-medium mt-3"
+						>
+							Show {hiddenProbes.size} hidden probe{hiddenProbes.size > 1 ? 's' : ''}
+						</button>
+					)}
 				</div>
 			)}
 
@@ -1352,7 +1525,9 @@ function SessionDetail() {
 									}
 									return areas;
 								}, [])}
-								{Object.keys(probeColors).map(
+								{Object.keys(probeColors)
+									.filter((probe) => !hiddenProbes.has(probe))
+									.map(
 									(probe) =>
 										temperatureData.some((d) => d[probe] !== undefined) && (
 											<Line
@@ -1360,7 +1535,7 @@ function SessionDetail() {
 												type="monotone"
 												dataKey={probe}
 												stroke={probeColors[probe]}
-												name={probeNames[probe]}
+												name={getProbeDisplayName(probe)}
 												dot={false}
 												strokeWidth={2}
 											/>
@@ -1376,13 +1551,15 @@ function SessionDetail() {
 								Temperature Statistics
 							</h3>
 							<div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-								{Object.entries(stats).map(([probe, data]) => (
+								{Object.entries(stats)
+									.filter(([probe]) => !hiddenProbes.has(probe))
+									.map(([probe, data]) => (
 									<div key={probe} className="border rounded-lg p-4">
 										<h4
 											className="font-semibold text-gray-700 mb-3"
 											style={{ color: probeColors[probe] }}
 										>
-											{probeNames[probe]}
+											{getProbeDisplayName(probe)}
 										</h4>
 										<div className="space-y-2 text-sm">
 											<div className="flex justify-between">

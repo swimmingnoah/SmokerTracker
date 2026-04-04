@@ -8,6 +8,7 @@ function CreateSession() {
 	const [meatType, setMeatType] = useState("");
 	const [notes, setNotes] = useState("");
 	const [recipeUrl, setRecipeUrl] = useState("");
+	const [weight, setWeight] = useState("");
 	const [spicesList, setSpicesList] = useState([]);
 	const [newSpice, setNewSpice] = useState("");
 	const [creating, setCreating] = useState(false);
@@ -53,6 +54,7 @@ function CreateSession() {
 					meatType: meatType.trim(),
 					notes: notes.trim(),
 					recipeUrl: recipeUrl.trim(),
+					weight: weight.trim(),
 					spices: spicesList.join(", "),
 				}),
 			});
@@ -128,6 +130,19 @@ function CreateSession() {
 						>
 							Manage Meat Types
 						</button>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-2">
+							Weight (Optional)
+						</label>
+						<input
+							type="text"
+							value={weight}
+							onChange={(e) => setWeight(e.target.value)}
+							className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+							placeholder="e.g. 12 lbs"
+						/>
 					</div>
 
 					<div>
