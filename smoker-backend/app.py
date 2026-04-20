@@ -542,6 +542,38 @@ from(bucket: "{INFLUX_BUCKET}")
                     'value': round(val, 1),
                 })
 
+        # Look back for the setpoint in effect at session start, in case the
+        # user set it before the session began and never touched it.
+        initial_query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -90d, stop: {start_time})
+  |> filter(fn: (r) => r["entity_id"] == "esp32smoker_smoker_set_temperature")
+  |> filter(fn: (r) => r["_field"] == "value" or r["_field"] == "state")
+  |> last()
+        '''
+
+        initial_tables = query_api.query(initial_query, org=INFLUX_ORG)
+        initial_value = None
+        initial_time = None
+        for table in initial_tables:
+            for record in table.records:
+                val = record.get_value()
+                if isinstance(val, str):
+                    try:
+                        val = float(val)
+                    except ValueError:
+                        continue
+                rec_time = record.get_time()
+                if initial_time is None or rec_time > initial_time:
+                    initial_time = rec_time
+                    initial_value = val
+
+        if initial_value is not None:
+            raw_points.insert(0, {
+                'time': start_time,
+                'value': round(initial_value, 1),
+            })
+
         # Deduplicate: only keep points where the value changed
         setpoints = []
         for point in raw_points:
