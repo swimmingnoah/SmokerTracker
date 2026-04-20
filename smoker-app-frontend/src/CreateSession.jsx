@@ -13,10 +13,46 @@ function CreateSession() {
 	const [newSpice, setNewSpice] = useState("");
 	const [creating, setCreating] = useState(false);
 	const [meatTypeOptions, setMeatTypeOptions] = useState([]);
+	const [savedSpices, setSavedSpices] = useState([]);
 
 	useEffect(() => {
 		fetchMeatTypes();
+		fetchSavedSpices();
 	}, []);
+
+	const fetchSavedSpices = async () => {
+		try {
+			const response = await apiFetch(`${CONFIG.apiUrl}/spices`);
+			if (response.ok) {
+				const data = await response.json();
+				setSavedSpices(data.spices);
+			}
+		} catch (err) {
+			console.error("Error fetching saved spices:", err);
+		}
+	};
+
+	const persistSpice = async (spice) => {
+		if (savedSpices.includes(spice)) return;
+		try {
+			await apiFetch(`${CONFIG.apiUrl}/spices`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ name: spice }),
+			});
+			setSavedSpices((prev) => [...prev, spice].sort());
+		} catch (err) {
+			console.error("Error saving spice:", err);
+		}
+	};
+
+	const addSpice = (raw) => {
+		const spice = raw.trim().replace(/,/g, "");
+		if (!spice || spicesList.includes(spice)) return;
+		setSpicesList([...spicesList, spice]);
+		setNewSpice("");
+		persistSpice(spice);
+	};
 
 	const fetchMeatTypes = async () => {
 		try {
@@ -189,11 +225,7 @@ function CreateSession() {
 								onKeyDown={(e) => {
 									if (e.key === "Enter") {
 										e.preventDefault();
-										const spice = newSpice.trim();
-										if (spice && !spicesList.includes(spice)) {
-											setSpicesList([...spicesList, spice]);
-											setNewSpice("");
-										}
+										addSpice(newSpice);
 									}
 								}}
 								className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
@@ -201,19 +233,32 @@ function CreateSession() {
 							/>
 							<button
 								type="button"
-								onClick={() => {
-									const spice = newSpice.trim();
-									if (spice && !spicesList.includes(spice)) {
-										setSpicesList([...spicesList, spice]);
-										setNewSpice("");
-									}
-								}}
+								onClick={() => addSpice(newSpice)}
 								disabled={!newSpice.trim()}
 								className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 disabled:opacity-50"
 							>
 								Add
 							</button>
 						</div>
+						{savedSpices.filter((s) => !spicesList.includes(s)).length > 0 && (
+							<div className="mt-2">
+								<p className="text-xs text-gray-500 mb-1">Saved spices — click to add:</p>
+								<div className="flex flex-wrap gap-2">
+									{savedSpices
+										.filter((s) => !spicesList.includes(s))
+										.map((spice) => (
+											<button
+												key={spice}
+												type="button"
+												onClick={() => addSpice(spice)}
+												className="bg-gray-100 text-gray-700 hover:bg-amber-100 hover:text-amber-800 px-3 py-1 rounded-full text-sm border border-gray-200"
+											>
+												+ {spice}
+											</button>
+										))}
+								</div>
+							</div>
+						)}
 					</div>
 
 					<div>
