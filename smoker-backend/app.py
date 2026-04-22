@@ -326,6 +326,79 @@ def rename_meat_type(meat_type):
         return safe_error('Failed to rename meat type')
 
 
+@app.route('/api/spices', methods=['GET'])
+def get_spices():
+    """Get the saved list of spices/rubs"""
+    try:
+        spices = get_spices_list()
+        return jsonify({'spices': sorted(spices)})
+    except Exception as e:
+        print(f"Error fetching spices: {e}")
+        return jsonify({'spices': []})
+
+
+@app.route('/api/spices', methods=['POST'])
+@require_api_key
+def add_spice():
+    """Add a new spice to the saved list"""
+    try:
+        data = request.get_json()
+        if not data:
+            return safe_error('Invalid request body', 400)
+
+        name = data.get('name', '').strip().replace(',', '')[:MAX_MEAT_TYPE_LENGTH]
+
+        if not name:
+            return safe_error('name required', 400)
+
+        spices = get_spices_list()
+
+        if name in spices:
+            return jsonify({'success': True, 'message': 'Spice already exists'})
+
+        spices.append(name)
+
+        point = Point("spice_list") \
+            .tag("app", "smoker_tracker") \
+            .field("spices", ','.join(spices)) \
+            .time(datetime.utcnow())
+
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+
+        return jsonify({'success': True, 'message': 'Spice added'})
+
+    except Exception as e:
+        print(f"Error adding spice: {e}")
+        return safe_error('Failed to add spice')
+
+
+@app.route('/api/spices/<spice>', methods=['DELETE'])
+@require_api_key
+def delete_spice(spice):
+    """Remove a spice from the saved list"""
+    try:
+        spices = get_spices_list()
+        spice = spice.strip()[:MAX_MEAT_TYPE_LENGTH]
+
+        if spice not in spices:
+            return jsonify({'success': True, 'message': 'Spice not found'})
+
+        spices.remove(spice)
+
+        point = Point("spice_list") \
+            .tag("app", "smoker_tracker") \
+            .field("spices", ','.join(spices)) \
+            .time(datetime.utcnow())
+
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+
+        return jsonify({'success': True, 'message': 'Spice removed'})
+
+    except Exception as e:
+        print(f"Error deleting spice: {e}")
+        return safe_error('Failed to delete spice')
+
+
 @app.route('/api/sessions', methods=['GET'])
 def get_sessions():
     """Get all smoke sessions. Use ?include_hidden=true to include hidden ones."""
@@ -1233,6 +1306,32 @@ from(bucket: "{INFLUX_BUCKET}")
 
     except Exception as e:
         print(f"Error getting meat types list: {e}")
+        return []
+
+
+def get_spices_list():
+    """Helper function to get the saved list of spices from InfluxDB"""
+    try:
+        query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -365d)
+  |> filter(fn: (r) => r["_measurement"] == "spice_list")
+  |> filter(fn: (r) => r["_field"] == "spices")
+  |> last()
+        '''
+
+        tables = query_api.query(query, org=INFLUX_ORG)
+
+        for table in tables:
+            for record in table.records:
+                value = record.get_value()
+                if value and value != '':
+                    return [s.strip() for s in value.split(',') if s.strip()]
+
+        return []
+
+    except Exception as e:
+        print(f"Error getting spices list: {e}")
         return []
 
 

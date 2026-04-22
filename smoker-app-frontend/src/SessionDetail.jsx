@@ -39,6 +39,7 @@ function SessionDetail() {
 		session?.spices ? session.spices.split(",").map((s) => s.trim()).filter(Boolean) : []
 	);
 	const [newSpice, setNewSpice] = useState("");
+	const [savedSpices, setSavedSpices] = useState([]);
 	const [isEditingWeight, setIsEditingWeight] = useState(false);
 	const [editedWeight, setEditedWeight] = useState(session?.weight || "");
 	const [savingField, setSavingField] = useState(null);
@@ -99,6 +100,7 @@ function SessionDetail() {
 		fetchSetpoints();
 		fetchPauses();
 		fetchMeatTypeOptions();
+		fetchSavedSpices();
 		fetchHiddenSetpoints();
 		fetchPhotos();
 		fetchProbeSettings();
@@ -164,6 +166,31 @@ function SessionDetail() {
 			setMeatTypeOptions(data.meatTypes);
 		} catch (err) {
 			console.error("Error fetching meat types:", err);
+		}
+	};
+
+	const fetchSavedSpices = async () => {
+		try {
+			const response = await apiFetch(`${CONFIG.apiUrl}/spices`);
+			if (!response.ok) return;
+			const data = await response.json();
+			setSavedSpices(data.spices);
+		} catch (err) {
+			console.error("Error fetching saved spices:", err);
+		}
+	};
+
+	const persistSpice = async (spice) => {
+		if (savedSpices.includes(spice)) return;
+		try {
+			await apiFetch(`${CONFIG.apiUrl}/spices`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ name: spice }),
+			});
+			setSavedSpices((prev) => [...prev, spice].sort());
+		} catch (err) {
+			console.error("Error saving spice:", err);
 		}
 	};
 
@@ -570,8 +597,9 @@ function SessionDetail() {
 		}
 	};
 
-	const handleAddSpice = () => {
-		const spice = newSpice.trim();
+	const handleAddSpice = (raw) => {
+		const source = typeof raw === "string" ? raw : newSpice;
+		const spice = source.trim().replace(/,/g, "");
 		if (!spice) return;
 		if (spicesList.includes(spice)) {
 			setNewSpice("");
@@ -581,6 +609,7 @@ function SessionDetail() {
 		setSpicesList(updated);
 		setNewSpice("");
 		handleSaveSpices(updated);
+		persistSpice(spice);
 	};
 
 	const handleRemoveSpice = (spice) => {
@@ -1129,13 +1158,32 @@ function SessionDetail() {
 									autoFocus
 								/>
 								<button
-									onClick={handleAddSpice}
+									onClick={() => handleAddSpice()}
 									disabled={!newSpice.trim()}
 									className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 disabled:opacity-50 text-sm"
 								>
 									Add
 								</button>
 							</div>
+							{savedSpices.filter((s) => !spicesList.includes(s)).length > 0 && (
+								<div className="mt-2">
+									<p className="text-xs text-gray-500 mb-1">Saved spices — click to add:</p>
+									<div className="flex flex-wrap gap-2">
+										{savedSpices
+											.filter((s) => !spicesList.includes(s))
+											.map((spice) => (
+												<button
+													key={spice}
+													type="button"
+													onClick={() => handleAddSpice(spice)}
+													className="bg-gray-100 text-gray-700 hover:bg-amber-100 hover:text-amber-800 px-3 py-1 rounded-full text-sm border border-gray-200"
+												>
+													+ {spice}
+												</button>
+											))}
+									</div>
+								</div>
+							)}
 							<button
 								onClick={() => {
 									setIsEditingSpices(false);
