@@ -448,8 +448,26 @@ from(bucket: "{INFLUX_BUCKET}")
                     if sid not in ended_sessions or t < ended_sessions[sid]:
                         ended_sessions[sid] = t
 
+        # Fetch session start overrides (for manually-edited start times)
+        start_query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -365d)
+  |> filter(fn: (r) => r["_measurement"] == "session_start")
+  |> filter(fn: (r) => r["_field"] == "value")
+        '''
+        start_tables = query_api.query(start_query, org=INFLUX_ORG)
+        started_sessions = {}
+        for table in start_tables:
+            for record in table.records:
+                sid = record.values.get('session_id')
+                if sid:
+                    t = record.get_time().isoformat()
+                    # Use the latest session_start override per session
+                    if sid not in started_sessions or t > started_sessions[sid]:
+                        started_sessions[sid] = t
+
         # Process sessions
-        sessions = process_sessions(all_data, hidden_sessions, include_hidden, ended_sessions)
+        sessions = process_sessions(all_data, hidden_sessions, include_hidden, ended_sessions, started_sessions)
 
         return jsonify({'sessions': sessions})
 
@@ -950,6 +968,50 @@ def update_session(session_id):
                     .time(now)
             )
 
+        if 'startTime' in data:
+            start_time_str = (data.get('startTime') or '').strip()
+            if not validate_timestamp(start_time_str):
+                return safe_error('Invalid startTime', 400)
+            new_start = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+            # Replace any prior session_start override for this session
+            delete_api = influx_client.delete_api()
+            delete_range_start = datetime(1970, 1, 1)
+            delete_range_stop = now + timedelta(days=365 * 10)
+            delete_api.delete(
+                delete_range_start, delete_range_stop,
+                f'_measurement="session_start" AND session_id="{session_id}"',
+                bucket=INFLUX_BUCKET, org=INFLUX_ORG,
+            )
+            points.append(
+                Point("session_start")
+                    .tag("session_id", session_id)
+                    .field("value", 1)
+                    .time(new_start)
+            )
+
+        if 'endTime' in data:
+            end_time_str = (data.get('endTime') or '').strip()
+            # Always clear prior end markers; only write a new one if a non-empty
+            # time was supplied (empty string == reopen the session).
+            delete_api = influx_client.delete_api()
+            delete_range_start = datetime(1970, 1, 1)
+            delete_range_stop = now + timedelta(days=365 * 10)
+            delete_api.delete(
+                delete_range_start, delete_range_stop,
+                f'_measurement="session_end" AND session_id="{session_id}"',
+                bucket=INFLUX_BUCKET, org=INFLUX_ORG,
+            )
+            if end_time_str:
+                if not validate_timestamp(end_time_str):
+                    return safe_error('Invalid endTime', 400)
+                new_end = datetime.fromisoformat(end_time_str.replace('Z', '+00:00'))
+                points.append(
+                    Point("session_end")
+                        .tag("session_id", session_id)
+                        .field("value", 1)
+                        .time(new_end)
+                )
+
         if points:
             write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=points)
 
@@ -1362,10 +1424,12 @@ from(bucket: "{INFLUX_BUCKET}")
         return []
 
 
-def process_sessions(all_data, hidden_sessions, include_hidden=False, ended_sessions=None):
+def process_sessions(all_data, hidden_sessions, include_hidden=False, ended_sessions=None, started_sessions=None):
     """Process raw data into sessions, optionally including hidden ones."""
     if ended_sessions is None:
         ended_sessions = {}
+    if started_sessions is None:
+        started_sessions = {}
     session_map = {}
 
     for point in all_data:
@@ -1420,6 +1484,7 @@ def process_sessions(all_data, hidden_sessions, include_hidden=False, ended_sess
             continue
 
         end_time = ended_sessions.get(session['id'], None)
+        start_override = started_sessions.get(session['id'])
 
         sessions.append({
             'id': session['id'],
@@ -1429,7 +1494,7 @@ def process_sessions(all_data, hidden_sessions, include_hidden=False, ended_sess
             'recipeUrl': session['recipeUrl'] or '',
             'spices': session['spices'] or '',
             'weight': session['weight'] or '',
-            'startTime': session['startTime'],
+            'startTime': start_override if start_override else session['startTime'],
             'endTime': end_time,
             'hidden': is_hidden,
         })
