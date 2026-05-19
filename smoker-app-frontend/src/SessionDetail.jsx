@@ -59,6 +59,10 @@ function SessionDetail() {
 	const [editingPauseIndex, setEditingPauseIndex] = useState(null);
 	const [editedPauseTime, setEditedPauseTime] = useState("");
 	const [meatTypeOptions, setMeatTypeOptions] = useState([]);
+	const [isEditingStartTime, setIsEditingStartTime] = useState(false);
+	const [editedStartTime, setEditedStartTime] = useState("");
+	const [isEditingEndTime, setIsEditingEndTime] = useState(false);
+	const [editedEndTime, setEditedEndTime] = useState("");
 
 	// Ref for incremental fetch — tracks last data point timestamp
 	const lastFetchedTimeRef = useRef(null);
@@ -520,6 +524,62 @@ function SessionDetail() {
 		} catch (err) {
 			console.error("Error saving weight:", err);
 			alert("Failed to save weight: " + err.message);
+			setSavingField(null);
+		}
+	};
+
+	const handleSaveStartTime = async () => {
+		if (!editedStartTime) {
+			alert("Pick a date and time first.");
+			return;
+		}
+		try {
+			setSavingField("startTime");
+			const iso = new Date(editedStartTime).toISOString();
+			const response = await fetch(
+				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
+				{
+					method: "PUT",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ startTime: iso }),
+				}
+			);
+			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+			setSession({ ...session, startTime: iso });
+			setIsEditingStartTime(false);
+			lastFetchedTimeRef.current = null;
+			fetchTemperatureData(true);
+			fetchSetpoints();
+		} catch (err) {
+			console.error("Error saving start time:", err);
+			alert("Failed to save start time: " + err.message);
+		} finally {
+			setSavingField(null);
+		}
+	};
+
+	const handleSaveEndTime = async () => {
+		try {
+			setSavingField("endTime");
+			const iso = editedEndTime ? new Date(editedEndTime).toISOString() : "";
+			const response = await fetch(
+				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
+				{
+					method: "PUT",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ endTime: iso }),
+				}
+			);
+			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+			setSession({ ...session, endTime: iso || null });
+			setIsEditingEndTime(false);
+			lastFetchedTimeRef.current = null;
+			fetchTemperatureData(true);
+			fetchSetpoints();
+		} catch (err) {
+			console.error("Error saving end time:", err);
+			alert("Failed to save end time: " + err.message);
+		} finally {
 			setSavingField(null);
 		}
 	};
@@ -986,20 +1046,111 @@ function SessionDetail() {
 				<div className="grid md:grid-cols-2 gap-4 mb-4">
 					<div>
 						<p className="text-sm text-gray-500">Started</p>
-						<p className="text-lg font-semibold text-gray-800">
-							{formatDate(session.startTime)}
-						</p>
+						{isEditingStartTime ? (
+							<div className="flex flex-wrap items-center gap-2 mt-1">
+								<input
+									type="datetime-local"
+									value={editedStartTime}
+									onChange={(e) => setEditedStartTime(e.target.value)}
+									className="px-3 py-1 border-2 border-orange-500 rounded text-sm focus:outline-none"
+									autoFocus
+								/>
+								<button
+									onClick={handleSaveStartTime}
+									disabled={savingField === "startTime"}
+									className="bg-orange-600 text-white px-3 py-1 rounded text-sm hover:bg-orange-700 disabled:opacity-50"
+								>
+									{savingField === "startTime" ? "Saving..." : "Save"}
+								</button>
+								<button
+									onClick={() => setIsEditingStartTime(false)}
+									disabled={savingField === "startTime"}
+									className="bg-gray-300 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-400 disabled:opacity-50"
+								>
+									Cancel
+								</button>
+							</div>
+						) : (
+							<div className="flex items-center gap-2 group">
+								<p className="text-lg font-semibold text-gray-800">
+									{formatDate(session.startTime)}
+								</p>
+								<button
+									onClick={() => {
+										setEditedStartTime(toLocalDatetimeValue(session.startTime));
+										setIsEditingStartTime(true);
+									}}
+									className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-orange-600 text-sm"
+									title="Edit start time"
+								>
+									✏️
+								</button>
+							</div>
+						)}
 					</div>
-					{session.endTime !== null ? (
-						<div>
-							<p className="text-sm text-gray-500">Ended</p>
-							<p className="text-lg font-semibold text-gray-800">
-								{formatDate(session.endTime)}
-							</p>
-						</div>
-					) : (
-						""
-					)}
+					<div>
+						<p className="text-sm text-gray-500">Ended</p>
+						{isEditingEndTime ? (
+							<div className="flex flex-wrap items-center gap-2 mt-1">
+								<input
+									type="datetime-local"
+									value={editedEndTime}
+									onChange={(e) => setEditedEndTime(e.target.value)}
+									className="px-3 py-1 border-2 border-orange-500 rounded text-sm focus:outline-none"
+									autoFocus
+								/>
+								<button
+									onClick={handleSaveEndTime}
+									disabled={savingField === "endTime"}
+									className="bg-orange-600 text-white px-3 py-1 rounded text-sm hover:bg-orange-700 disabled:opacity-50"
+								>
+									{savingField === "endTime" ? "Saving..." : "Save"}
+								</button>
+								{session.endTime !== null && (
+									<button
+										onClick={() => {
+											setEditedEndTime("");
+											handleSaveEndTime();
+										}}
+										disabled={savingField === "endTime"}
+										className="bg-red-100 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-200 disabled:opacity-50"
+										title="Clear end time (reopen session)"
+									>
+										Clear
+									</button>
+								)}
+								<button
+									onClick={() => setIsEditingEndTime(false)}
+									disabled={savingField === "endTime"}
+									className="bg-gray-300 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-400 disabled:opacity-50"
+								>
+									Cancel
+								</button>
+							</div>
+						) : (
+							<div className="flex items-center gap-2 group">
+								<p className="text-lg font-semibold text-gray-800">
+									{session.endTime !== null
+										? formatDate(session.endTime)
+										: "— still active —"}
+								</p>
+								<button
+									onClick={() => {
+										setEditedEndTime(
+											session.endTime !== null
+												? toLocalDatetimeValue(session.endTime)
+												: toLocalDatetimeValue(new Date().toISOString())
+										);
+										setIsEditingEndTime(true);
+									}}
+									className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-orange-600 text-sm"
+									title="Edit end time"
+								>
+									✏️
+								</button>
+							</div>
+						)}
+					</div>
 				</div>
 
 				{/* Editable Notes Section */}

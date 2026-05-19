@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Smoker Tracker",
+    "slug": "smoker-tracker-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "platforms": ["ios", "android", "web"],
+    "web": {
+      "bundler": "metro"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.swimmingnoah.smokertracker.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Take photos of your smoke sessions.",
+        "NSPhotoLibraryUsageDescription": "Attach photos to your smoke sessions.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
+    },
+    "android": {
+      "package": "com.swimmingnoah.smokertracker.mobile",
+      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"],
+      "usesCleartextTraffic": true
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to attach them to smoke sessions.",
+          "cameraPermission": "The app accesses your camera to take smoke session photos."
+        }
+      ]
+    ]
+  }
+}
