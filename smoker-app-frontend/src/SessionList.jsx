@@ -1,19 +1,28 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CONFIG, apiFetch } from './config';
+import {
+	parseWeightLbs,
+	computeEstimate,
+	formatHoursMinutes,
+	formatDateTime,
+} from './planUtils';
 
 function SessionList() {
 	const navigate = useNavigate();
 	const [sessions, setSessions] = useState([]);
+	const [plans, setPlans] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
 	const [showHidden, setShowHidden] = useState(false);
 	const [meatTypeFilter, setMeatTypeFilter] = useState('All');
 	const [meatTypes, setMeatTypes] = useState([]);
+	const [startingPlanId, setStartingPlanId] = useState(null);
 
 	useEffect(() => {
 		fetchSessions();
 		fetchMeatTypes();
+		fetchPlans();
 	}, [showHidden]);
 
 	const fetchSessions = async () => {
@@ -42,6 +51,50 @@ function SessionList() {
 			setMeatTypes(data.meatTypes);
 		} catch (err) {
 			console.error('Error fetching meat types:', err);
+		}
+	};
+
+	const fetchPlans = async () => {
+		try {
+			const response = await apiFetch(`${CONFIG.apiUrl}/plans`);
+			if (!response.ok) return;
+			const data = await response.json();
+			setPlans(data.plans || []);
+		} catch (err) {
+			console.error('Error fetching plans:', err);
+		}
+	};
+
+	const handleDeletePlan = async (e, planId) => {
+		e.stopPropagation();
+		const confirmed = window.confirm('Delete this plan?');
+		if (!confirmed) return;
+		try {
+			const response = await apiFetch(`${CONFIG.apiUrl}/plans/${encodeURIComponent(planId)}`, {
+				method: 'DELETE',
+			});
+			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+			fetchPlans();
+		} catch (err) {
+			alert('Failed to delete plan: ' + err.message);
+		}
+	};
+
+	const handleStartPlan = async (e, planId) => {
+		e.stopPropagation();
+		try {
+			setStartingPlanId(planId);
+			const response = await apiFetch(`${CONFIG.apiUrl}/plans/${encodeURIComponent(planId)}/start`, {
+				method: 'POST',
+			});
+			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+			const data = await response.json();
+			navigate(`/sessions/${encodeURIComponent(data.session.id)}`, {
+				state: { session: data.session },
+			});
+		} catch (err) {
+			alert('Failed to start plan: ' + err.message);
+			setStartingPlanId(null);
 		}
 	};
 
@@ -152,6 +205,26 @@ function SessionList() {
 						</svg>
 					</button>
 					<button
+						onClick={() => navigate('/plan/new')}
+						className="bg-white border border-orange-600 text-orange-600 px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-medium hover:bg-orange-50 flex items-center gap-2 text-sm sm:text-base"
+					>
+						<svg
+							className="w-5 h-5"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+							/>
+						</svg>
+						<span className="hidden sm:inline">Plan a Smoke</span>
+						<span className="sm:hidden">Plan</span>
+					</button>
+					<button
 						onClick={() => navigate('/sessions/new')}
 						className="bg-orange-600 text-white px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-medium hover:bg-orange-700 flex items-center gap-2 text-sm sm:text-base"
 					>
@@ -200,6 +273,101 @@ function SessionList() {
 							{type}
 						</button>
 					))}
+				</div>
+			)}
+
+			{plans.length > 0 && (
+				<div className="mb-8">
+					<h3 className="text-lg font-semibold text-gray-700 mb-3">Planned Smokes</h3>
+					<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+						{plans.map((plan) => {
+							const estimate = computeEstimate(
+								sessions,
+								plan.meatType,
+								parseWeightLbs(plan.weight)
+							);
+							let suggestedStartISO = '';
+							if (plan.targetEndTime && estimate.estimatedDurationHours != null) {
+								const end = new Date(plan.targetEndTime);
+								if (!isNaN(end.getTime())) {
+									suggestedStartISO = new Date(
+										end.getTime() - estimate.estimatedDurationHours * 60 * 60 * 1000
+									).toISOString();
+								}
+							}
+							const isStarting = startingPlanId === plan.id;
+							return (
+								<div
+									key={plan.id}
+									className="bg-amber-50 rounded-lg shadow p-6 border-l-4 border-amber-500"
+								>
+									<div className="flex justify-between items-start mb-3 gap-2">
+										<h4 className="text-lg font-semibold text-gray-800">{plan.name}</h4>
+										{plan.meatType && (
+											<span className="bg-amber-200 text-amber-900 text-xs font-medium px-2.5 py-0.5 rounded shrink-0">
+												{plan.meatType}
+											</span>
+										)}
+									</div>
+									<div className="space-y-1 text-sm text-gray-700 mb-4">
+										{plan.weight && <div>Weight: {plan.weight}</div>}
+										{plan.targetEndTime && (
+											<div>Target end: {formatDateTime(plan.targetEndTime)}</div>
+										)}
+										{suggestedStartISO ? (
+											<div>
+												Suggested start:{' '}
+												<span className="font-semibold text-orange-700">
+													{formatDateTime(suggestedStartISO)}
+												</span>
+											</div>
+										) : plan.targetEndTime ? (
+											<div className="italic text-gray-500">
+												No historical data — can't suggest a start.
+											</div>
+										) : null}
+										{estimate.estimatedDurationHours != null && (
+											<div className="text-xs text-gray-500">
+												Est. duration ~{formatHoursMinutes(estimate.estimatedDurationHours)}
+											</div>
+										)}
+									</div>
+									<div className="flex gap-2">
+										<button
+											onClick={(e) => handleStartPlan(e, plan.id)}
+											disabled={isStarting}
+											className="flex-1 bg-orange-600 text-white px-3 py-2 rounded-lg font-medium hover:bg-orange-700 disabled:opacity-50 text-sm"
+										>
+											{isStarting ? 'Starting...' : 'Start Now'}
+										</button>
+										<button
+											onClick={(e) => {
+												e.stopPropagation();
+												navigate(`/plan/${encodeURIComponent(plan.id)}`);
+											}}
+											className="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
+										>
+											Edit
+										</button>
+										<button
+											onClick={(e) => handleDeletePlan(e, plan.id)}
+											className="px-3 py-2 rounded-lg border border-gray-300 text-gray-500 hover:text-red-600 hover:border-red-300 text-sm"
+											title="Delete plan"
+										>
+											<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path
+													strokeLinecap="round"
+													strokeLinejoin="round"
+													strokeWidth={2}
+													d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+												/>
+											</svg>
+										</button>
+									</div>
+								</div>
+							);
+						})}
+					</div>
 				</div>
 			)}
 
