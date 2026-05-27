@@ -872,7 +872,7 @@ function SessionDetail() {
 			<div className="flex items-center justify-center py-20">
 				<div className="text-center">
 					<div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
-					<p className="mt-4 text-gray-600">Loading session...</p>
+					<p className="mt-4 text-neutral-400">Loading session...</p>
 				</div>
 			</div>
 		);
@@ -885,13 +885,13 @@ function SessionDetail() {
 			<div className="flex justify-between items-center mb-6">
 				<button
 					onClick={() => navigate("/")}
-					className="flex items-center text-orange-600 hover:text-orange-700 font-medium"
+					className="flex items-center text-orange-400 hover:text-orange-300 font-medium"
 				>
 					← Back to Sessions
 				</button>
 			</div>
 
-			<div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 mb-6">
+			<div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-6 mb-6">
 				{/* Editable Name */}
 				<div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-2">
 					{isEditingName ? (
@@ -900,32 +900,32 @@ function SessionDetail() {
 								type="text"
 								value={editedName}
 								onChange={(e) => setEditedName(e.target.value)}
-								className="flex-1 text-xl sm:text-3xl font-bold text-gray-800 px-2 py-1 border-2 border-orange-500 rounded focus:outline-none min-w-0"
+								className="flex-1 text-xl sm:text-3xl font-bold text-white px-2 py-1 border-2 border-orange-500 rounded focus:outline-none min-w-0"
 								autoFocus
 							/>
 							<button
 								onClick={handleSaveName}
 								disabled={savingField === "name"}
-								className="bg-orange-600 text-white px-3 py-1 rounded hover:bg-orange-700 text-sm disabled:opacity-50 whitespace-nowrap"
+								className="bg-orange-500 text-white px-3 py-1 rounded hover:bg-orange-600 text-sm disabled:opacity-50 whitespace-nowrap"
 							>
 								{savingField === "name" ? "..." : "Save"}
 							</button>
 							<button
 								onClick={() => handleCancelEdit("name")}
 								disabled={savingField === "name"}
-								className="bg-gray-300 text-gray-700 px-3 py-1 rounded hover:bg-gray-400 text-sm disabled:opacity-50"
+								className="bg-neutral-800 border border-neutral-700 text-neutral-300 px-3 py-1 rounded hover:bg-neutral-700 text-sm disabled:opacity-50"
 							>
 								Cancel
 							</button>
 						</div>
 					) : (
 						<div className="flex items-center gap-2 group">
-							<h2 className="text-2xl sm:text-3xl font-bold text-gray-800">
+							<h2 className="text-2xl sm:text-3xl font-bold text-white">
 								{session.name}
 							</h2>
 							<button
 								onClick={() => setIsEditingName(true)}
-								className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-orange-600 transition-opacity"
+								className="opacity-0 group-hover:opacity-100 text-neutral-600 hover:text-orange-400 transition-opacity"
 							>
 								✏️
 							</button>
@@ -939,7 +939,7 @@ function SessionDetail() {
 								disabled={pauseLoading}
 								className={`flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50 text-sm sm:text-base ${
 									isPaused
-										? "bg-green-600 text-white hover:bg-green-700"
+										? "bg-emerald-500 text-white hover:bg-emerald-600"
 										: "bg-yellow-500 text-white hover:bg-yellow-600"
 								}`}
 							>
@@ -947,7 +947,7 @@ function SessionDetail() {
 							</button>
 							<button
 								onClick={handleEndSession}
-								className="flex-1 sm:flex-none bg-orange-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium hover:bg-orange-700 flex items-center justify-center gap-2 text-sm sm:text-base"
+								className="flex-1 sm:flex-none bg-orange-500 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium hover:bg-orange-600 flex items-center justify-center gap-2 text-sm sm:text-base"
 							>
 								End Smoke
 							</button>
@@ -957,7 +957,7 @@ function SessionDetail() {
 					)}
 				</div>
 
-				<div className="flex flex-wrap gap-3 text-sm text-gray-600 mb-4">
+				<div className="flex flex-wrap gap-3 text-sm text-neutral-400 mb-4">
 					{/* Editable Meat Type */}
 					{isEditingMeatType ? (
 						<div className="flex flex-wrap items-center gap-2">
@@ -974,26 +974,26 @@ function SessionDetail() {
 							<button
 								onClick={handleSaveMeatType}
 								disabled={savingField === "meatType"}
-								className="bg-orange-600 text-white px-2 py-1 rounded hover:bg-orange-700 text-xs disabled:opacity-50"
+								className="bg-orange-500 text-white px-2 py-1 rounded hover:bg-orange-600 text-xs disabled:opacity-50"
 							>
 								{savingField === "meatType" ? "..." : "Save"}
 							</button>
 							<button
 								onClick={() => handleCancelEdit("meatType")}
 								disabled={savingField === "meatType"}
-								className="bg-gray-300 text-gray-700 px-2 py-1 rounded hover:bg-gray-400 text-xs disabled:opacity-50"
+								className="bg-neutral-800 border border-neutral-700 text-neutral-300 px-2 py-1 rounded hover:bg-neutral-700 text-xs disabled:opacity-50"
 							>
 								Cancel
 							</button>
 						</div>
 					) : (
 						<div className="flex items-center gap-1 group">
-							<span className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full font-medium">
+							<span className="bg-orange-500/15 border border-orange-500/30 text-orange-300 px-3 py-1 rounded-full font-medium">
 								{session.meatType || "N/A"}
 							</span>
 							<button
 								onClick={() => setIsEditingMeatType(true)}
-								className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-orange-600 text-xs"
+								className="opacity-0 group-hover:opacity-100 text-neutral-600 hover:text-orange-400 text-xs"
 							>
 								✏️
 							</button>
@@ -1016,26 +1016,26 @@ function SessionDetail() {
 							<button
 								onClick={handleSaveWeight}
 								disabled={savingField === "weight"}
-								className="bg-orange-600 text-white px-2 py-1 rounded hover:bg-orange-700 text-xs disabled:opacity-50"
+								className="bg-orange-500 text-white px-2 py-1 rounded hover:bg-orange-600 text-xs disabled:opacity-50"
 							>
 								{savingField === "weight" ? "..." : "Save"}
 							</button>
 							<button
 								onClick={() => handleCancelEdit("weight")}
 								disabled={savingField === "weight"}
-								className="bg-gray-300 text-gray-700 px-2 py-1 rounded hover:bg-gray-400 text-xs disabled:opacity-50"
+								className="bg-neutral-800 border border-neutral-700 text-neutral-300 px-2 py-1 rounded hover:bg-neutral-700 text-xs disabled:opacity-50"
 							>
 								Cancel
 							</button>
 						</div>
 					) : (
 						<div className="flex items-center gap-1 group">
-							<span className="text-gray-600">
+							<span className="text-neutral-400">
 								{session.weight ? `Weight: ${session.weight}` : ""}
 							</span>
 							<button
 								onClick={() => setIsEditingWeight(true)}
-								className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-orange-600 text-xs"
+								className="opacity-0 group-hover:opacity-100 text-neutral-600 hover:text-orange-400 text-xs"
 							>
 								{session.weight ? "✏️" : "+ Weight"}
 							</button>
@@ -1045,7 +1045,7 @@ function SessionDetail() {
 
 				<div className="grid md:grid-cols-2 gap-4 mb-4">
 					<div>
-						<p className="text-sm text-gray-500">Started</p>
+						<p className="text-sm text-neutral-500">Started</p>
 						{isEditingStartTime ? (
 							<div className="flex flex-wrap items-center gap-2 mt-1">
 								<input
@@ -1058,21 +1058,21 @@ function SessionDetail() {
 								<button
 									onClick={handleSaveStartTime}
 									disabled={savingField === "startTime"}
-									className="bg-orange-600 text-white px-3 py-1 rounded text-sm hover:bg-orange-700 disabled:opacity-50"
+									className="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600 disabled:opacity-50"
 								>
 									{savingField === "startTime" ? "Saving..." : "Save"}
 								</button>
 								<button
 									onClick={() => setIsEditingStartTime(false)}
 									disabled={savingField === "startTime"}
-									className="bg-gray-300 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-400 disabled:opacity-50"
+									className="bg-neutral-800 border border-neutral-700 text-neutral-300 px-3 py-1 rounded text-sm hover:bg-neutral-700 disabled:opacity-50"
 								>
 									Cancel
 								</button>
 							</div>
 						) : (
 							<div className="flex items-center gap-2 group">
-								<p className="text-lg font-semibold text-gray-800">
+								<p className="text-lg font-semibold text-white">
 									{formatDate(session.startTime)}
 								</p>
 								<button
@@ -1080,7 +1080,7 @@ function SessionDetail() {
 										setEditedStartTime(toLocalDatetimeValue(session.startTime));
 										setIsEditingStartTime(true);
 									}}
-									className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-orange-600 text-sm"
+									className="opacity-0 group-hover:opacity-100 text-neutral-600 hover:text-orange-400 text-sm"
 									title="Edit start time"
 								>
 									✏️
@@ -1089,7 +1089,7 @@ function SessionDetail() {
 						)}
 					</div>
 					<div>
-						<p className="text-sm text-gray-500">Ended</p>
+						<p className="text-sm text-neutral-500">Ended</p>
 						{isEditingEndTime ? (
 							<div className="flex flex-wrap items-center gap-2 mt-1">
 								<input
@@ -1102,7 +1102,7 @@ function SessionDetail() {
 								<button
 									onClick={handleSaveEndTime}
 									disabled={savingField === "endTime"}
-									className="bg-orange-600 text-white px-3 py-1 rounded text-sm hover:bg-orange-700 disabled:opacity-50"
+									className="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600 disabled:opacity-50"
 								>
 									{savingField === "endTime" ? "Saving..." : "Save"}
 								</button>
@@ -1113,7 +1113,7 @@ function SessionDetail() {
 											handleSaveEndTime();
 										}}
 										disabled={savingField === "endTime"}
-										className="bg-red-100 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-200 disabled:opacity-50"
+										className="bg-red-500/15 text-red-300 px-3 py-1 rounded text-sm hover:bg-red-500/20 disabled:opacity-50"
 										title="Clear end time (reopen session)"
 									>
 										Clear
@@ -1122,14 +1122,14 @@ function SessionDetail() {
 								<button
 									onClick={() => setIsEditingEndTime(false)}
 									disabled={savingField === "endTime"}
-									className="bg-gray-300 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-400 disabled:opacity-50"
+									className="bg-neutral-800 border border-neutral-700 text-neutral-300 px-3 py-1 rounded text-sm hover:bg-neutral-700 disabled:opacity-50"
 								>
 									Cancel
 								</button>
 							</div>
 						) : (
 							<div className="flex items-center gap-2 group">
-								<p className="text-lg font-semibold text-gray-800">
+								<p className="text-lg font-semibold text-white">
 									{session.endTime !== null
 										? formatDate(session.endTime)
 										: "— still active —"}
@@ -1143,7 +1143,7 @@ function SessionDetail() {
 										);
 										setIsEditingEndTime(true);
 									}}
-									className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-orange-600 text-sm"
+									className="opacity-0 group-hover:opacity-100 text-neutral-600 hover:text-orange-400 text-sm"
 									title="Edit end time"
 								>
 									✏️
@@ -1154,13 +1154,13 @@ function SessionDetail() {
 				</div>
 
 				{/* Editable Notes Section */}
-				<div className="mt-4 p-4 bg-gray-50 rounded-lg">
+				<div className="mt-4 p-4 bg-neutral-950/50 rounded-lg">
 					<div className="flex justify-between items-center mb-2">
-						<p className="text-sm text-gray-500 font-medium">Notes</p>
+						<p className="text-sm text-neutral-500 font-medium">Notes</p>
 						{!isEditingNotes && (
 							<button
 								onClick={() => setIsEditingNotes(true)}
-								className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+								className="text-sm text-orange-400 hover:text-orange-300 font-medium"
 							>
 								Edit
 							</button>
@@ -1172,7 +1172,7 @@ function SessionDetail() {
 							<textarea
 								value={editedNotes}
 								onChange={(e) => setEditedNotes(e.target.value)}
-								className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+								className="w-full p-3 border border-neutral-800 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
 								rows="4"
 								placeholder="Add notes about this smoke session..."
 							/>
@@ -1180,34 +1180,34 @@ function SessionDetail() {
 								<button
 									onClick={handleSaveNotes}
 									disabled={savingField === "notes"}
-									className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700 disabled:opacity-50"
+									className="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600 disabled:opacity-50"
 								>
 									{savingField === "notes" ? "Saving..." : "Save"}
 								</button>
 								<button
 									onClick={() => handleCancelEdit("notes")}
 									disabled={savingField === "notes"}
-									className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 disabled:opacity-50"
+									className="bg-neutral-800 border border-neutral-700 text-neutral-300 px-4 py-2 rounded hover:bg-neutral-700 disabled:opacity-50"
 								>
 									Cancel
 								</button>
 							</div>
 						</div>
 					) : (
-						<p className="text-gray-700 italic whitespace-pre-wrap">
+						<p className="text-neutral-300 italic whitespace-pre-wrap">
 							{session.notes || "No notes yet. Click Edit to add notes."}
 						</p>
 					)}
 				</div>
 
 				{/* Recipe URL Section */}
-				<div className="mt-4 p-4 bg-gray-50 rounded-lg">
+				<div className="mt-4 p-4 bg-neutral-950/50 rounded-lg">
 					<div className="flex justify-between items-center mb-2">
-						<p className="text-sm text-gray-500 font-medium">Recipe</p>
+						<p className="text-sm text-neutral-500 font-medium">Recipe</p>
 						{!isEditingRecipeUrl && (
 							<button
 								onClick={() => setIsEditingRecipeUrl(true)}
-								className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+								className="text-sm text-orange-400 hover:text-orange-300 font-medium"
 							>
 								Edit
 							</button>
@@ -1220,21 +1220,21 @@ function SessionDetail() {
 								type="url"
 								value={editedRecipeUrl}
 								onChange={(e) => setEditedRecipeUrl(e.target.value)}
-								className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+								className="w-full px-3 py-2 border border-neutral-800 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
 								placeholder="https://example.com/recipe"
 							/>
 							<div className="flex gap-2 mt-2">
 								<button
 									onClick={handleSaveRecipeUrl}
 									disabled={savingField === "recipeUrl"}
-									className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700 disabled:opacity-50 text-sm"
+									className="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600 disabled:opacity-50 text-sm"
 								>
 									{savingField === "recipeUrl" ? "Saving..." : "Save"}
 								</button>
 								<button
 									onClick={() => handleCancelEdit("recipeUrl")}
 									disabled={savingField === "recipeUrl"}
-									className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 disabled:opacity-50 text-sm"
+									className="bg-neutral-800 border border-neutral-700 text-neutral-300 px-4 py-2 rounded hover:bg-neutral-700 disabled:opacity-50 text-sm"
 								>
 									Cancel
 								</button>
@@ -1245,25 +1245,25 @@ function SessionDetail() {
 							href={session.recipeUrl}
 							target="_blank"
 							rel="noopener noreferrer"
-							className="text-orange-600 hover:text-orange-700 underline text-sm break-all"
+							className="text-orange-400 hover:text-orange-300 underline text-sm break-all"
 						>
 							{session.recipeUrl}
 						</a>
 					) : (
-						<p className="text-gray-700 italic text-sm">
+						<p className="text-neutral-300 italic text-sm">
 							No recipe link. Click Edit to add one.
 						</p>
 					)}
 				</div>
 
 				{/* Spices Section */}
-				<div className="mt-4 p-4 bg-gray-50 rounded-lg">
+				<div className="mt-4 p-4 bg-neutral-950/50 rounded-lg">
 					<div className="flex justify-between items-center mb-2">
-						<p className="text-sm text-gray-500 font-medium">Spices / Rub</p>
+						<p className="text-sm text-neutral-500 font-medium">Spices / Rub</p>
 						{!isEditingSpices && (
 							<button
 								onClick={() => setIsEditingSpices(true)}
-								className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+								className="text-sm text-orange-400 hover:text-orange-300 font-medium"
 							>
 								Edit
 							</button>
@@ -1275,13 +1275,13 @@ function SessionDetail() {
 							{spicesList.map((spice) => (
 								<span
 									key={spice}
-									className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-medium"
+									className="inline-flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 text-amber-300 px-3 py-1 rounded-full text-sm font-medium"
 								>
 									{spice}
 									{isEditingSpices && (
 										<button
 											onClick={() => handleRemoveSpice(spice)}
-											className="text-amber-600 hover:text-red-600 ml-0.5"
+											className="text-amber-400 hover:text-red-400 ml-0.5"
 										>
 											×
 										</button>
@@ -1304,21 +1304,21 @@ function SessionDetail() {
 											handleAddSpice();
 										}
 									}}
-									className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+									className="flex-1 px-3 py-2 border border-neutral-800 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
 									placeholder="Type a spice and press Enter..."
 									autoFocus
 								/>
 								<button
 									onClick={() => handleAddSpice()}
 									disabled={!newSpice.trim()}
-									className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 disabled:opacity-50 text-sm"
+									className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 disabled:opacity-50 text-sm"
 								>
 									Add
 								</button>
 							</div>
 							{savedSpices.filter((s) => !spicesList.includes(s)).length > 0 && (
 								<div className="mt-2">
-									<p className="text-xs text-gray-500 mb-1">Saved spices — click to add:</p>
+									<p className="text-xs text-neutral-500 mb-1">Saved spices — click to add:</p>
 									<div className="flex flex-wrap gap-2">
 										{savedSpices
 											.filter((s) => !spicesList.includes(s))
@@ -1327,7 +1327,7 @@ function SessionDetail() {
 													key={spice}
 													type="button"
 													onClick={() => handleAddSpice(spice)}
-													className="bg-gray-100 text-gray-700 hover:bg-amber-100 hover:text-amber-800 px-3 py-1 rounded-full text-sm border border-gray-200"
+													className="bg-neutral-900 text-neutral-300 hover:bg-amber-500/15 border border-amber-500/30 hover:text-amber-300 px-3 py-1 rounded-full text-sm border border-neutral-800"
 												>
 													+ {spice}
 												</button>
@@ -1340,23 +1340,23 @@ function SessionDetail() {
 									setIsEditingSpices(false);
 									setNewSpice("");
 								}}
-								className="text-sm text-gray-500 hover:text-gray-700 mt-2"
+								className="text-sm text-neutral-500 hover:text-neutral-300 mt-2"
 							>
 								Done
 							</button>
 						</div>
 					) : spicesList.length === 0 ? (
-						<p className="text-gray-700 italic text-sm">
+						<p className="text-neutral-300 italic text-sm">
 							No spices listed. Click Edit to add.
 						</p>
 					) : null}
 				</div>
 
 				{/* Photos Section */}
-				<div className="mt-4 p-4 bg-gray-50 rounded-lg">
+				<div className="mt-4 p-4 bg-neutral-950/50 rounded-lg">
 					<div className="flex justify-between items-center mb-3">
-						<p className="text-sm text-gray-500 font-medium">Photos</p>
-						<label className="text-sm text-orange-600 hover:text-orange-700 font-medium cursor-pointer">
+						<p className="text-sm text-neutral-500 font-medium">Photos</p>
+						<label className="text-sm text-orange-400 hover:text-orange-300 font-medium cursor-pointer">
 							{uploadingPhoto ? "Uploading..." : "Add Photo"}
 							<input
 								type="file"
@@ -1391,7 +1391,7 @@ function SessionDetail() {
 							))}
 						</div>
 					) : (
-						<p className="text-gray-700 italic text-sm">
+						<p className="text-neutral-300 italic text-sm">
 							No photos yet. Tap "Add Photo" to upload.
 						</p>
 					)}
@@ -1400,12 +1400,12 @@ function SessionDetail() {
 
 			{/* Current Temperatures Card */}
 			{currentTemps && (
-				<div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 mb-6">
+				<div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-6 mb-6">
 					<div className="flex justify-between items-center mb-4">
-						<h3 className="text-lg sm:text-xl font-bold text-gray-800">
+						<h3 className="text-lg sm:text-xl font-bold text-white">
 							{isActiveSession() ? "Current Temperatures" : "Final Temperatures"}
 						</h3>
-						<span className="text-xs text-gray-400">
+						<span className="text-xs text-neutral-600">
 							{formatTime(new Date(currentTemps.time))}
 						</span>
 					</div>
@@ -1436,7 +1436,7 @@ function SessionDetail() {
 										</div>
 									) : (
 										<p
-											className="text-xs sm:text-sm font-medium text-gray-600 mb-1 cursor-pointer hover:text-orange-600"
+											className="text-xs sm:text-sm font-medium text-neutral-400 mb-1 cursor-pointer hover:text-orange-400"
 											onClick={() => {
 												setEditingProbeName(probe);
 												setEditedProbeName(customProbeNames[probe] || probeNames[probe]);
@@ -1454,7 +1454,7 @@ function SessionDetail() {
 									</p>
 									<button
 										onClick={() => toggleProbeHidden(probe)}
-										className="absolute top-1 right-1 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+										className="absolute top-1 right-1 text-neutral-700 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity"
 										title="Hide this probe"
 									>
 										<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1471,7 +1471,7 @@ function SessionDetail() {
 								setHiddenProbes(new Set());
 								saveProbeSettings(new Set(), customProbeNames);
 							}}
-							className="text-xs text-blue-600 hover:text-blue-700 font-medium mt-3"
+							className="text-xs text-sky-400 hover:text-sky-300 font-medium mt-3"
 						>
 							Show {hiddenProbes.size} hidden probe{hiddenProbes.size > 1 ? 's' : ''}
 						</button>
@@ -1480,16 +1480,16 @@ function SessionDetail() {
 			)}
 
 			{/* Setpoint History Section */}
-			<div className="mt-4 p-4 bg-blue-50 rounded-lg">
+			<div className="mt-4 p-4 bg-sky-500/10 rounded-lg">
 				<button
 					onClick={() => setShowSetpoints(!showSetpoints)}
 					className="flex items-center justify-between w-full text-left"
 				>
-					<h3 className="text-sm font-medium text-gray-700">
+					<h3 className="text-sm font-medium text-neutral-300">
 						Temperature Setpoint History
 					</h3>
 					<svg
-						className={`w-4 h-4 text-gray-500 transition-transform ${showSetpoints ? 'rotate-180' : ''}`}
+						className={`w-4 h-4 text-neutral-500 transition-transform ${showSetpoints ? 'rotate-180' : ''}`}
 						fill="none"
 						stroke="currentColor"
 						viewBox="0 0 24 24"
@@ -1501,9 +1501,9 @@ function SessionDetail() {
 				{showSetpoints && (
 					<div className="mt-3">
 						{loadingSetpoints ? (
-							<p className="text-sm text-gray-500">Loading setpoints...</p>
+							<p className="text-sm text-neutral-500">Loading setpoints...</p>
 						) : setpoints.length === 0 ? (
-							<p className="text-sm text-gray-500 italic">
+							<p className="text-sm text-neutral-500 italic">
 								No setpoint data available
 							</p>
 						) : (
@@ -1526,35 +1526,35 @@ function SessionDetail() {
 									return (
 										<div
 											key={setpoint.time}
-											className="flex items-center justify-between p-3 bg-white rounded border-l-4 border-blue-500"
+											className="flex items-center justify-between p-3 bg-neutral-950/50 border border-neutral-800 rounded-lg border-l-4 border-sky-500"
 										>
 											<div>
 												<div className="flex items-center gap-2">
-													<span className="text-xl sm:text-2xl font-bold text-blue-600">
+													<span className="text-xl sm:text-2xl font-bold text-sky-400">
 														{setpoint.value}°F
 													</span>
 													{isFirst && (
-														<span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+														<span className="text-xs bg-sky-500/15 text-sky-300 px-2 py-1 rounded">
 															Initial
 														</span>
 													)}
 													{!nextVisible && (
-														<span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+														<span className="text-xs bg-emerald-500/15 text-emerald-300 px-2 py-1 rounded">
 															Current
 														</span>
 													)}
 												</div>
-												<div className="text-xs text-gray-500 mt-1">
+												<div className="text-xs text-neutral-500 mt-1">
 													Set at {formatDate(setpoint.time)}
 												</div>
 											</div>
 											<div className="flex items-center gap-3">
 												<div className="text-right">
-													<div className="text-sm font-semibold text-gray-700">
+													<div className="text-sm font-semibold text-neutral-300">
 														{hours > 0 ? `${hours}h ` : ""}
 														{minutes}m
 													</div>
-													<div className="text-xs text-gray-500">duration</div>
+													<div className="text-xs text-neutral-500">duration</div>
 												</div>
 												<button
 													onClick={() => {
@@ -1562,7 +1562,7 @@ function SessionDetail() {
 														setHiddenSetpoints(newSet);
 														saveHiddenSetpoints(newSet);
 													}}
-													className="text-gray-300 hover:text-red-500 transition-colors"
+													className="text-neutral-700 hover:text-red-300 transition-colors"
 													title="Hide this setpoint"
 												>
 													<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1579,7 +1579,7 @@ function SessionDetail() {
 											setHiddenSetpoints(new Set());
 											saveHiddenSetpoints(new Set());
 										}}
-										className="text-xs text-blue-600 hover:text-blue-700 font-medium mt-1"
+										className="text-xs text-sky-400 hover:text-sky-300 font-medium mt-1"
 									>
 										Show {hiddenSetpoints.size} hidden setpoint{hiddenSetpoints.size > 1 ? 's' : ''}
 									</button>
@@ -1592,8 +1592,8 @@ function SessionDetail() {
 
 		{/* Pause History Section */}
 		{pauses.length > 0 && (
-			<div className="mt-4 p-4 bg-yellow-50 rounded-lg">
-				<h3 className="text-sm font-medium text-gray-700 mb-3">
+			<div className="mt-4 p-4 bg-yellow-500/10 rounded-lg">
+				<h3 className="text-sm font-medium text-neutral-300 mb-3">
 					Pause History
 				</h3>
 				<div className="space-y-2">
@@ -1613,12 +1613,12 @@ function SessionDetail() {
 						return (
 							<div
 								key={index}
-								className={`flex items-center justify-between p-3 bg-white rounded border-l-4 ${
-									isPauseEvent ? "border-yellow-400" : "border-green-400"
+								className={`flex items-center justify-between p-3 bg-neutral-950/50 border border-neutral-800 rounded-lg border-l-4 ${
+									isPauseEvent ? "border-yellow-500/50" : "border-emerald-500/50"
 								}`}
 							>
 								<div className="flex-1 min-w-0">
-									<span className={`text-sm font-semibold ${isPauseEvent ? "text-yellow-700" : "text-green-700"}`}>
+									<span className={`text-sm font-semibold ${isPauseEvent ? "text-yellow-300" : "text-emerald-300"}`}>
 										{isPauseEvent ? "Paused" : "Resumed"}
 									</span>
 									{isEditing ? (
@@ -1632,20 +1632,20 @@ function SessionDetail() {
 											/>
 											<button
 												onClick={() => handleSavePauseTime(index)}
-												className="bg-orange-600 text-white px-2 py-1 rounded text-xs hover:bg-orange-700"
+												className="bg-orange-500 text-white px-2 py-1 rounded text-xs hover:bg-orange-600"
 											>
 												Save
 											</button>
 											<button
 												onClick={() => setEditingPauseIndex(null)}
-												className="bg-gray-300 text-gray-700 px-2 py-1 rounded text-xs hover:bg-gray-400"
+												className="bg-neutral-800 border border-neutral-700 text-neutral-300 px-2 py-1 rounded text-xs hover:bg-neutral-700"
 											>
 												Cancel
 											</button>
 										</div>
 									) : (
 										<div
-											className="text-xs text-gray-500 mt-0.5 cursor-pointer hover:text-orange-600"
+											className="text-xs text-neutral-500 mt-0.5 cursor-pointer hover:text-orange-400"
 											onClick={() => {
 												setEditingPauseIndex(index);
 												setEditedPauseTime(toLocalDatetimeValue(event.time));
@@ -1658,8 +1658,8 @@ function SessionDetail() {
 								</div>
 								{durationLabel && !isEditing && (
 									<div className="text-right ml-3">
-										<div className="text-sm font-semibold text-gray-700">{durationLabel}</div>
-										<div className="text-xs text-gray-500">off smoker</div>
+										<div className="text-sm font-semibold text-neutral-300">{durationLabel}</div>
+										<div className="text-xs text-neutral-500">off smoker</div>
 									</div>
 								)}
 							</div>
@@ -1670,18 +1670,18 @@ function SessionDetail() {
 		)}
 
 			{loading ? (
-				<div className="bg-white rounded-lg shadow-lg p-12 text-center">
+				<div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-12 text-center">
 					<div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
-					<p className="mt-4 text-gray-600">Loading temperature data...</p>
+					<p className="mt-4 text-neutral-400">Loading temperature data...</p>
 				</div>
 			) : error ? (
-				<div className="bg-white rounded-lg shadow-lg p-8">
-					<p className="text-red-600">{error}</p>
+				<div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8">
+					<p className="text-red-400">{error}</p>
 				</div>
 			) : (
 				<>
-					<div className="bg-white rounded-lg shadow-lg p-3 sm:p-6 mb-6">
-						<h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">
+					<div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3 sm:p-6 mb-6">
+						<h3 className="text-lg sm:text-xl font-bold text-white mb-4">
 							Temperature Over Time
 						</h3>
 						<ResponsiveContainer width="100%" height={400}>
@@ -1745,8 +1745,8 @@ function SessionDetail() {
 					</div>
 
 					{stats && (
-						<div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
-							<h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">
+						<div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-6">
+							<h3 className="text-lg sm:text-xl font-bold text-white mb-4">
 								Temperature Statistics
 							</h3>
 							<div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
@@ -1755,22 +1755,22 @@ function SessionDetail() {
 									.map(([probe, data]) => (
 									<div key={probe} className="border rounded-lg p-4">
 										<h4
-											className="font-semibold text-gray-700 mb-3"
+											className="font-semibold text-neutral-300 mb-3"
 											style={{ color: probeColors[probe] }}
 										>
 											{getProbeDisplayName(probe)}
 										</h4>
 										<div className="space-y-2 text-sm">
 											<div className="flex justify-between">
-												<span className="text-gray-500">Avg:</span>
+												<span className="text-neutral-500">Avg:</span>
 												<span className="font-medium">{data.avg}°F</span>
 											</div>
 											<div className="flex justify-between">
-												<span className="text-gray-500">Max:</span>
+												<span className="text-neutral-500">Max:</span>
 												<span className="font-medium">{data.max}°F</span>
 											</div>
 											<div className="flex justify-between">
-												<span className="text-gray-500">Min:</span>
+												<span className="text-neutral-500">Min:</span>
 												<span className="font-medium">{data.min}°F</span>
 											</div>
 										</div>

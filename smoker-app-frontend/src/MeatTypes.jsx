@@ -99,14 +99,14 @@ function MeatTypes() {
 			<div className="mb-6">
 				<button
 					onClick={() => navigate('/')}
-					className="flex items-center text-orange-600 hover:text-orange-700 font-medium"
+					className="flex items-center text-orange-400 hover:text-orange-300 font-medium"
 				>
 					← Back to Sessions
 				</button>
 			</div>
 
-			<div className="bg-white rounded-lg shadow-lg p-4 sm:p-8">
-				<h2 className="text-2xl font-bold text-gray-800 mb-6">Meat Types</h2>
+			<div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-8">
+				<h2 className="text-2xl font-bold text-white mb-6">Meat Types</h2>
 
 				{/* Add new meat type */}
 				<form onSubmit={handleAdd} className="flex gap-2 mb-8">
@@ -114,13 +114,13 @@ function MeatTypes() {
 						type="text"
 						value={newType}
 						onChange={(e) => setNewType(e.target.value)}
-						className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+						className="flex-1 px-4 py-2 bg-neutral-950 border border-neutral-800 rounded-lg text-neutral-100 placeholder-neutral-600 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
 						placeholder="Add a new meat type..."
 					/>
 					<button
 						type="submit"
 						disabled={adding || !newType.trim()}
-						className="bg-orange-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+						className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-semibold shadow-lg shadow-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
 					>
 						{adding ? 'Adding...' : 'Add'}
 					</button>
@@ -129,11 +129,11 @@ function MeatTypes() {
 				{/* List of meat types */}
 				{loading ? (
 					<div className="text-center py-8">
-						<div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
-						<p className="mt-2 text-gray-500">Loading...</p>
+						<div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+						<p className="mt-2 text-neutral-500">Loading...</p>
 					</div>
 				) : meatTypes.length === 0 ? (
-					<p className="text-gray-500 text-center py-8 italic">
+					<p className="text-neutral-500 text-center py-8 italic">
 						No meat types yet. Add your first one above.
 					</p>
 				) : (
@@ -141,7 +141,7 @@ function MeatTypes() {
 						{meatTypes.map((type) => (
 							<div
 								key={type}
-								className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200"
+								className="flex items-center justify-between p-4 bg-neutral-950/50 rounded-lg border border-neutral-800"
 							>
 								{editingType === type ? (
 									<form
@@ -152,20 +152,20 @@ function MeatTypes() {
 											type="text"
 											value={editedName}
 											onChange={(e) => setEditedName(e.target.value)}
-											className="flex-1 px-3 py-1 border-2 border-orange-500 rounded-lg focus:outline-none text-sm"
+											className="flex-1 px-3 py-1 bg-neutral-950 border-2 border-orange-500 rounded-lg text-neutral-100 focus:outline-none text-sm"
 											autoFocus
 											onKeyDown={(e) => { if (e.key === 'Escape') setEditingType(null); }}
 										/>
 										<button
 											type="submit"
-											className="bg-orange-600 text-white px-3 py-1 rounded text-sm hover:bg-orange-700"
+											className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded text-sm font-semibold"
 										>
 											Save
 										</button>
 										<button
 											type="button"
 											onClick={() => setEditingType(null)}
-											className="bg-gray-300 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-400"
+											className="bg-neutral-800 border border-neutral-700 text-neutral-300 px-3 py-1 rounded text-sm hover:border-neutral-600"
 										>
 											Cancel
 										</button>
@@ -173,14 +173,14 @@ function MeatTypes() {
 								) : (
 									<>
 										<div className="flex items-center gap-3">
-											<span className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
+											<span className="bg-orange-500/15 border border-orange-500/30 text-orange-300 px-3 py-1 rounded-full text-sm font-medium">
 												{type}
 											</span>
 										</div>
 										<div className="flex items-center gap-2">
 											<button
 												onClick={() => { setEditingType(type); setEditedName(type); }}
-												className="text-gray-400 hover:text-orange-600 transition-colors"
+												className="text-neutral-500 hover:text-orange-400 transition-colors"
 												title="Edit meat type"
 											>
 												<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -189,7 +189,7 @@ function MeatTypes() {
 											</button>
 											<button
 												onClick={() => handleDelete(type)}
-												className="text-gray-400 hover:text-red-600 transition-colors"
+												className="text-neutral-500 hover:text-red-400 transition-colors"
 												title="Remove meat type"
 											>
 												<svg
