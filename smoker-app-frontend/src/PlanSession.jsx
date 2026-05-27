@@ -8,7 +8,12 @@ import {
 	formatDateTime,
 	isoToLocalInput,
 	localInputToISO,
+	buildTimeOptions,
+	snapTimeToInterval,
 } from "./planUtils";
+
+const TIME_INTERVAL_MIN = 30;
+const TIME_OPTIONS = buildTimeOptions(TIME_INTERVAL_MIN);
 
 function PlanSession() {
 	const navigate = useNavigate();
@@ -22,7 +27,8 @@ function PlanSession() {
 	const [notes, setNotes] = useState("");
 	const [spicesList, setSpicesList] = useState([]);
 	const [newSpice, setNewSpice] = useState("");
-	const [targetEndLocal, setTargetEndLocal] = useState("");
+	const [targetEndDate, setTargetEndDate] = useState("");
+	const [targetEndTime, setTargetEndTime] = useState("");
 
 	const [pastSessions, setPastSessions] = useState([]);
 	const [meatTypeOptions, setMeatTypeOptions] = useState([]);
@@ -71,7 +77,12 @@ function PlanSession() {
 									.map((s) => s.trim())
 									.filter(Boolean)
 							);
-							setTargetEndLocal(isoToLocalInput(plan.targetEndTime));
+							const localStr = isoToLocalInput(plan.targetEndTime);
+							if (localStr) {
+								const [datePart, timePart] = localStr.split("T");
+								setTargetEndDate(datePart || "");
+								setTargetEndTime(snapTimeToInterval(timePart, TIME_INTERVAL_MIN));
+							}
 						}
 					}
 				} else if (meatTypes.length > 0) {
@@ -90,6 +101,11 @@ function PlanSession() {
 		() => computeEstimate(pastSessions, meatType, plannedWeightLbs),
 		[pastSessions, meatType, plannedWeightLbs]
 	);
+
+	const targetEndLocal = useMemo(() => {
+		if (!targetEndDate || !targetEndTime) return "";
+		return `${targetEndDate}T${targetEndTime}`;
+	}, [targetEndDate, targetEndTime]);
 
 	const suggestedStartISO = useMemo(() => {
 		if (!targetEndLocal || estimate.estimatedDurationHours == null) return "";
@@ -262,12 +278,26 @@ function PlanSession() {
 						<label className="block text-sm font-medium text-gray-700 mb-2">
 							Target End Time
 						</label>
-						<input
-							type="datetime-local"
-							value={targetEndLocal}
-							onChange={(e) => setTargetEndLocal(e.target.value)}
-							className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-						/>
+						<div className="flex flex-col sm:flex-row gap-2">
+							<input
+								type="date"
+								value={targetEndDate}
+								onChange={(e) => setTargetEndDate(e.target.value)}
+								className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+							/>
+							<select
+								value={targetEndTime}
+								onChange={(e) => setTargetEndTime(e.target.value)}
+								className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white"
+							>
+								<option value="">Select time...</option>
+								{TIME_OPTIONS.map((opt) => (
+									<option key={opt.value} value={opt.value}>
+										{opt.label}
+									</option>
+								))}
+							</select>
+						</div>
 						{suggestedStartISO && (
 							<p className="mt-2 text-sm text-gray-700">
 								Suggested start:{" "}
