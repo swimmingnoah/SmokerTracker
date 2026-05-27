@@ -79,6 +79,36 @@ export function localInputToISO(localStr) {
 	return d.toISOString();
 }
 
+// Build an array of time options at the given interval (minutes) covering 00:00..23:30.
+// Each entry is { value: "HH:MM" (24-hour), label: "h:mm AM/PM" }.
+export function buildTimeOptions(intervalMinutes = 30) {
+	const out = [];
+	for (let h = 0; h < 24; h++) {
+		for (let m = 0; m < 60; m += intervalMinutes) {
+			const value = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+			const period = h < 12 ? "AM" : "PM";
+			const h12 = h % 12 === 0 ? 12 : h % 12;
+			const label = `${h12}:${String(m).padStart(2, "0")} ${period}`;
+			out.push({ value, label });
+		}
+	}
+	return out;
+}
+
+// Round a "HH:MM" string up/nearest to the given interval. Returns one of the option values.
+export function snapTimeToInterval(timeStr, intervalMinutes = 30) {
+	if (!timeStr) return "";
+	const [hStr, mStr] = timeStr.split(":");
+	const h = parseInt(hStr, 10);
+	const m = parseInt(mStr, 10);
+	if (isNaN(h) || isNaN(m)) return "";
+	const totalMin = h * 60 + Math.round(m / intervalMinutes) * intervalMinutes;
+	const clamped = Math.min(totalMin, 23 * 60 + (60 - intervalMinutes));
+	const newH = Math.floor(clamped / 60);
+	const newM = clamped % 60;
+	return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
+}
+
 export function formatDateTime(iso) {
 	if (!iso) return 'N/A';
 	const d = new Date(iso);
