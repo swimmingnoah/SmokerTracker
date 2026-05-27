@@ -590,6 +590,146 @@ from(bucket: "{INFLUX_BUCKET}")
         return safe_error('Failed to fetch sessions')
 
 
+@app.route('/api/sessions/stats', methods=['GET'])
+def get_sessions_stats():
+    """Return aggregate stats per session: avg ambient (RTD), peak meat (probe 1/2 max), pause count."""
+    try:
+        # Reuse session metadata from the existing helper path to know start/end times.
+        hidden_sessions = get_hidden_sessions_list()
+
+        meta_query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -365d)
+  |> filter(fn: (r) => r["domain"] == "input_text")
+  |> filter(fn: (r) => r["_field"] == "state")
+  |> filter(fn: (r) => r["entity_id"] == "current_session_id" or r["entity_id"] == "smoke_session_name" or r["entity_id"] == "meat_type" or r["entity_id"] == "smoke_session_notes" or r["entity_id"] == "smoke_session_recipe_url" or r["entity_id"] == "smoke_session_spices" or r["entity_id"] == "smoke_session_weight")
+        '''
+        tables = query_api.query(meta_query, org=INFLUX_ORG)
+        all_data = []
+        for table in tables:
+            for record in table.records:
+                all_data.append({
+                    'time': record.get_time().isoformat(),
+                    'sessionId': record.values.get('current_session_id'),
+                    'name': record.values.get('smoke_session_name'),
+                    'meatType': record.values.get('meat_type'),
+                    'notes': record.values.get('smoke_session_notes'),
+                    'entityId': record.values.get('entity_id'),
+                    'value': record.get_value(),
+                })
+
+        end_tables = query_api.query(f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -365d)
+  |> filter(fn: (r) => r["_measurement"] == "session_end")
+  |> filter(fn: (r) => r["_field"] == "value")
+        ''', org=INFLUX_ORG)
+        ended_sessions = {}
+        for table in end_tables:
+            for record in table.records:
+                sid = record.values.get('session_id')
+                if sid:
+                    t = record.get_time().isoformat()
+                    if sid not in ended_sessions or t < ended_sessions[sid]:
+                        ended_sessions[sid] = t
+
+        start_tables = query_api.query(f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -365d)
+  |> filter(fn: (r) => r["_measurement"] == "session_start")
+  |> filter(fn: (r) => r["_field"] == "value")
+        ''', org=INFLUX_ORG)
+        started_sessions = {}
+        for table in start_tables:
+            for record in table.records:
+                sid = record.values.get('session_id')
+                if sid:
+                    t = record.get_time().isoformat()
+                    if sid not in started_sessions or t > started_sessions[sid]:
+                        started_sessions[sid] = t
+
+        sessions = process_sessions(all_data, hidden_sessions, False, ended_sessions, started_sessions)
+
+        # Bulk-fetch temperature data once with a coarse window
+        temp_query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -365d)
+  |> filter(fn: (r) => r["_measurement"] == "°F")
+  |> filter(fn: (r) => r["_field"] == "value")
+  |> filter(fn: (r) => r["entity_id"] == "esp32smoker_probe_1_temperature" or r["entity_id"] == "esp32smoker_probe_2_temperature" or r["entity_id"] == "esp32smoker_rtd_temperature")
+  |> aggregateWindow(every: 15m, fn: mean, createEmpty: false)
+        '''
+        temp_tables = query_api.query(temp_query, org=INFLUX_ORG)
+
+        # Build per-probe time-sorted lists once, then bucket per session by range
+        ambient = []  # (datetime, value)
+        meat = []     # (datetime, value)
+        for table in temp_tables:
+            for record in table.records:
+                entity = record.values.get('entity_id')
+                v = record.get_value()
+                if v is None:
+                    continue
+                t = record.get_time()
+                if entity == 'esp32smoker_rtd_temperature':
+                    ambient.append((t, v))
+                else:
+                    meat.append((t, v))
+        ambient.sort(key=lambda x: x[0])
+        meat.sort(key=lambda x: x[0])
+
+        # Pauses
+        pause_tables = query_api.query(f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -365d)
+  |> filter(fn: (r) => r["_measurement"] == "session_pauses")
+  |> filter(fn: (r) => r["_field"] == "value")
+  |> filter(fn: (r) => r["event_type"] == "pause")
+        ''', org=INFLUX_ORG)
+        pause_counts = {}
+        for table in pause_tables:
+            for record in table.records:
+                sid = record.values.get('session_id')
+                if sid:
+                    pause_counts[sid] = pause_counts.get(sid, 0) + 1
+
+        from datetime import timezone as _tz
+
+        def _parse(iso_str):
+            if not iso_str:
+                return None
+            try:
+                return datetime.fromisoformat(iso_str.replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                return None
+
+        stats = {}
+        now_utc = datetime.now(_tz.utc)
+        for s in sessions:
+            start_dt = _parse(s.get('startTime'))
+            end_dt = _parse(s.get('endTime')) or now_utc
+            if not start_dt:
+                continue
+
+            ambient_vals = [v for (t, v) in ambient if start_dt <= t <= end_dt]
+            meat_vals = [v for (t, v) in meat if start_dt <= t <= end_dt]
+
+            avg_ambient = round(sum(ambient_vals) / len(ambient_vals), 1) if ambient_vals else None
+            peak_meat = round(max(meat_vals), 1) if meat_vals else None
+
+            stats[s['id']] = {
+                'avgAmbient': avg_ambient,
+                'peakMeat': peak_meat,
+                'pauseCount': pause_counts.get(s['id'], 0),
+            }
+
+        return jsonify({'stats': stats})
+
+    except Exception as e:
+        print(f"Error fetching session stats: {e}")
+        return safe_error('Failed to fetch session stats')
+
+
 @app.route('/api/sessions/<session_id>/temperatures', methods=['GET'])
 def get_session_temperatures(session_id):
     """Get temperature data for a specific session"""

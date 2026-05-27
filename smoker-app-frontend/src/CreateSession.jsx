@@ -108,108 +108,102 @@ function CreateSession() {
 		}
 	};
 
+	const inputCls = "w-full px-4 py-2 bg-neutral-950 border border-neutral-800 rounded-lg text-neutral-100 placeholder-neutral-600 focus:ring-2 focus:ring-orange-500 focus:border-transparent";
+	const labelCls = "block text-sm font-medium text-neutral-400 mb-2";
+
 	return (
 		<div className="max-w-2xl mx-auto">
 			<div className="mb-6">
 				<button
 					onClick={() => navigate("/")}
-					className="flex items-center text-orange-600 hover:text-orange-700 font-medium"
+					className="flex items-center text-orange-400 hover:text-orange-300 font-medium"
 				>
 					← Back to Sessions
 				</button>
 			</div>
-			<div className="bg-white rounded-lg shadow-lg p-8">
-				<h2 className="text-2xl font-bold text-gray-800 mb-6">
+			<div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 sm:p-8">
+				<p className="text-xs uppercase tracking-[0.25em] text-neutral-500 mb-2">New Cook</p>
+				<h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-6 tracking-tight">
 					Start New Smoke Session
 				</h2>
 
 				<form onSubmit={handleSubmit} className="space-y-6">
 					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">
-							Session Name *
-						</label>
+						<label className={labelCls}>Session Name *</label>
 						<input
 							type="text"
 							value={name}
 							onChange={(e) => setName(e.target.value)}
-							className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+							className={inputCls}
 							placeholder="e.g., Saturday Brisket"
 							required
 						/>
 					</div>
 
 					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">
-							Meat Type
-						</label>
+						<label className={labelCls}>Meat Type</label>
 						{meatTypeOptions.length > 0 ? (
 							<select
 								value={meatType}
 								onChange={(e) => setMeatType(e.target.value)}
-								className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+								className={inputCls}
 							>
 								{meatTypeOptions.map((option) => (
-									<option key={option} value={option}>
+									<option key={option} value={option} className="bg-neutral-900">
 										{option}
 									</option>
 								))}
 							</select>
 						) : (
-							<p className="text-sm text-gray-500 italic">
+							<p className="text-sm text-neutral-500 italic">
 								No meat types configured yet.
 							</p>
 						)}
 						<button
 							type="button"
 							onClick={() => navigate("/meat-types")}
-							className="mt-2 text-sm text-orange-600 hover:text-orange-700 font-medium"
+							className="mt-2 text-sm text-orange-400 hover:text-orange-300 font-medium"
 						>
 							Manage Meat Types
 						</button>
 					</div>
 
 					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">
-							Weight (Optional)
-						</label>
+						<label className={labelCls}>Weight (Optional)</label>
 						<input
 							type="text"
 							value={weight}
 							onChange={(e) => setWeight(e.target.value)}
-							className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+							className={inputCls}
 							placeholder="e.g. 12 lbs"
 						/>
 					</div>
 
 					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">
-							Recipe URL (Optional)
-						</label>
+						<label className={labelCls}>Recipe URL (Optional)</label>
 						<input
 							type="url"
 							value={recipeUrl}
 							onChange={(e) => setRecipeUrl(e.target.value)}
-							className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+							className={inputCls}
 							placeholder="https://example.com/recipe"
 						/>
 					</div>
 
 					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">
-							Spices / Rub (Optional)
-						</label>
+						<label className={labelCls}>Spices / Rub (Optional)</label>
 						{spicesList.length > 0 && (
 							<div className="flex flex-wrap gap-2 mb-2">
 								{spicesList.map((spice) => (
 									<span
 										key={spice}
-										className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-medium"
+										className="inline-flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 text-amber-300 px-3 py-1 rounded-full text-sm font-medium"
 									>
 										{spice}
 										<button
 											type="button"
 											onClick={() => setSpicesList(spicesList.filter((s) => s !== spice))}
-											className="text-amber-600 hover:text-red-600 ml-0.5"
+											className="text-amber-400/70 hover:text-red-400 ml-0.5"
 										>
 											×
 										</button>
@@ -228,21 +222,21 @@ function CreateSession() {
 										addSpice(newSpice);
 									}
 								}}
-								className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+								className={`flex-1 ${inputCls}`}
 								placeholder="Type a spice and press Enter..."
 							/>
 							<button
 								type="button"
 								onClick={() => addSpice(newSpice)}
 								disabled={!newSpice.trim()}
-								className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 disabled:opacity-50"
+								className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-semibold shadow-lg shadow-orange-500/20 disabled:opacity-50"
 							>
 								Add
 							</button>
 						</div>
 						{savedSpices.filter((s) => !spicesList.includes(s)).length > 0 && (
 							<div className="mt-2">
-								<p className="text-xs text-gray-500 mb-1">Saved spices — click to add:</p>
+								<p className="text-xs text-neutral-500 mb-1">Saved spices — click to add:</p>
 								<div className="flex flex-wrap gap-2">
 									{savedSpices
 										.filter((s) => !spicesList.includes(s))
@@ -251,7 +245,7 @@ function CreateSession() {
 												key={spice}
 												type="button"
 												onClick={() => addSpice(spice)}
-												className="bg-gray-100 text-gray-700 hover:bg-amber-100 hover:text-amber-800 px-3 py-1 rounded-full text-sm border border-gray-200"
+												className="bg-neutral-950 border border-neutral-800 text-neutral-300 hover:border-amber-500/40 hover:text-amber-300 px-3 py-1 rounded-full text-sm"
 											>
 												+ {spice}
 											</button>
@@ -262,23 +256,21 @@ function CreateSession() {
 					</div>
 
 					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">
-							Notes (Optional)
-						</label>
+						<label className={labelCls}>Notes (Optional)</label>
 						<textarea
 							value={notes}
 							onChange={(e) => setNotes(e.target.value)}
-							className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+							className={`${inputCls} resize-y`}
 							rows="4"
 							placeholder="Add any notes about this smoke..."
 						/>
 					</div>
 
-					<div className="flex gap-4">
+					<div className="flex gap-3">
 						<button
 							type="submit"
 							disabled={creating}
-							className="flex-1 bg-orange-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+							className="flex-1 bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg shadow-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
 						>
 							{creating ? "Creating..." : "Start Session"}
 						</button>
@@ -286,7 +278,7 @@ function CreateSession() {
 							type="button"
 							onClick={() => navigate("/")}
 							disabled={creating}
-							className="flex-1 bg-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-400 disabled:opacity-50"
+							className="flex-1 bg-neutral-800 border border-neutral-700 text-neutral-300 px-6 py-3 rounded-xl font-medium hover:border-neutral-600 disabled:opacity-50"
 						>
 							Cancel
 						</button>

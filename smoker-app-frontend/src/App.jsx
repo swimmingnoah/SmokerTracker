@@ -55,8 +55,8 @@ function App() {
 
   if (!authChecked) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
+        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
       </div>
     );
   }
@@ -66,15 +66,22 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-orange-600 text-white p-4 sm:p-6 shadow-lg">
-        <h1 className="text-2xl sm:text-3xl font-bold">Smoker Tracker</h1>
-        <p className="text-orange-100 text-sm sm:text-base">
-          Track and analyze your smoking sessions
-        </p>
+    <div className="min-h-screen bg-neutral-950 text-neutral-100">
+      <header className="border-b border-neutral-800 px-4 sm:px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.24 17 6.5c1.5 2 2.5 3 2.5 5.5a8.014 8.014 0 01-1.843 6.657z" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-base font-semibold leading-tight">Smoker Tracker</h1>
+            <p className="text-xs text-neutral-500 leading-tight">Track and analyze your smoking sessions</p>
+          </div>
+        </div>
       </header>
 
-      <div className="container mx-auto p-3 sm:p-6">
+      <div className="container mx-auto p-3 sm:p-6 max-w-6xl">
         <Routes>
           <Route path="/" element={<SessionList />} />
           <Route path="/sessions/new" element={<CreateSession />} />
