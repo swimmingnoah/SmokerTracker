@@ -5,6 +5,7 @@ from influxdb_client.client.write_api import SYNCHRONOUS
 from datetime import datetime, timedelta
 from functools import wraps
 from werkzeug.utils import secure_filename
+import json
 import os
 import re
 import uuid
@@ -134,62 +135,9 @@ def create_session():
         session_id = str(uuid.uuid4())
         now = datetime.utcnow()
 
-        points = [
-            Point("text")
-                .tag("domain", "input_text")
-                .tag("entity_id", "current_session_id")
-                .tag("current_session_id", session_id)
-                .field("state", session_id)
-                .time(now),
-            Point("text")
-                .tag("domain", "input_text")
-                .tag("entity_id", "smoke_session_name")
-                .tag("current_session_id", session_id)
-                .field("state", name)
-                .time(now),
-            Point("text")
-                .tag("domain", "input_text")
-                .tag("entity_id", "meat_type")
-                .tag("current_session_id", session_id)
-                .field("state", meat_type)
-                .time(now),
-            Point("text")
-                .tag("domain", "input_text")
-                .tag("entity_id", "smoke_session_notes")
-                .tag("current_session_id", session_id)
-                .field("state", notes)
-                .time(now),
-        ]
-
-        if recipe_url:
-            points.append(
-                Point("text")
-                    .tag("domain", "input_text")
-                    .tag("entity_id", "smoke_session_recipe_url")
-                    .tag("current_session_id", session_id)
-                    .field("state", recipe_url)
-                    .time(now)
-            )
-
-        if spices:
-            points.append(
-                Point("text")
-                    .tag("domain", "input_text")
-                    .tag("entity_id", "smoke_session_spices")
-                    .tag("current_session_id", session_id)
-                    .field("state", spices)
-                    .time(now)
-            )
-
-        if weight:
-            points.append(
-                Point("text")
-                    .tag("domain", "input_text")
-                    .tag("entity_id", "smoke_session_weight")
-                    .tag("current_session_id", session_id)
-                    .field("state", weight)
-                    .time(now)
-            )
+        points = _build_session_points(
+            session_id, now, name, meat_type, notes, recipe_url, spices, weight
+        )
 
         write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=points)
 
@@ -397,6 +345,172 @@ def delete_spice(spice):
     except Exception as e:
         print(f"Error deleting spice: {e}")
         return safe_error('Failed to delete spice')
+
+
+@app.route('/api/plans', methods=['GET'])
+def get_plans():
+    """List all saved session plans"""
+    try:
+        return jsonify({'plans': get_plans_list()})
+    except Exception as e:
+        print(f"Error fetching plans: {e}")
+        return safe_error('Failed to fetch plans')
+
+
+@app.route('/api/plans', methods=['POST'])
+@require_api_key
+def create_plan():
+    """Create a new session plan"""
+    try:
+        data = request.get_json()
+        if not data:
+            return safe_error('Invalid request body', 400)
+
+        name = data.get('name', '').strip()[:MAX_NAME_LENGTH]
+        if not name:
+            return safe_error('name required', 400)
+
+        target_end = (data.get('targetEndTime') or '').strip()
+        if target_end and not validate_timestamp(target_end):
+            return safe_error('Invalid targetEndTime', 400)
+
+        plan = {
+            'id': str(uuid.uuid4()),
+            'name': name,
+            'meatType': data.get('meatType', '').strip()[:MAX_MEAT_TYPE_LENGTH],
+            'weight': data.get('weight', '').strip()[:MAX_MEAT_TYPE_LENGTH],
+            'recipeUrl': data.get('recipeUrl', '').strip()[:MAX_URL_LENGTH],
+            'spices': data.get('spices', '').strip()[:MAX_NOTES_LENGTH],
+            'notes': data.get('notes', '').strip()[:MAX_NOTES_LENGTH],
+            'targetEndTime': target_end,
+            'createdAt': datetime.utcnow().isoformat() + 'Z',
+        }
+
+        plans = get_plans_list()
+        plans.append(plan)
+        _write_plans_list(plans)
+
+        return jsonify({'plan': plan})
+
+    except Exception as e:
+        print(f"Error creating plan: {e}")
+        return safe_error('Failed to create plan')
+
+
+@app.route('/api/plans/<plan_id>', methods=['PUT'])
+@require_api_key
+def update_plan(plan_id):
+    """Update a saved plan"""
+    try:
+        data = request.get_json()
+        if not data:
+            return safe_error('Invalid request body', 400)
+
+        plans = get_plans_list()
+        idx = next((i for i, p in enumerate(plans) if p.get('id') == plan_id), None)
+        if idx is None:
+            return safe_error('Plan not found', 404)
+
+        plan = plans[idx]
+
+        if 'name' in data:
+            new_name = data['name'].strip()[:MAX_NAME_LENGTH]
+            if not new_name:
+                return safe_error('name required', 400)
+            plan['name'] = new_name
+        if 'meatType' in data:
+            plan['meatType'] = data['meatType'].strip()[:MAX_MEAT_TYPE_LENGTH]
+        if 'weight' in data:
+            plan['weight'] = data['weight'].strip()[:MAX_MEAT_TYPE_LENGTH]
+        if 'recipeUrl' in data:
+            plan['recipeUrl'] = data['recipeUrl'].strip()[:MAX_URL_LENGTH]
+        if 'spices' in data:
+            plan['spices'] = data['spices'].strip()[:MAX_NOTES_LENGTH]
+        if 'notes' in data:
+            plan['notes'] = data['notes'].strip()[:MAX_NOTES_LENGTH]
+        if 'targetEndTime' in data:
+            ts = (data.get('targetEndTime') or '').strip()
+            if ts and not validate_timestamp(ts):
+                return safe_error('Invalid targetEndTime', 400)
+            plan['targetEndTime'] = ts
+
+        plans[idx] = plan
+        _write_plans_list(plans)
+
+        return jsonify({'plan': plan})
+
+    except Exception as e:
+        print(f"Error updating plan: {e}")
+        return safe_error('Failed to update plan')
+
+
+@app.route('/api/plans/<plan_id>', methods=['DELETE'])
+@require_api_key
+def delete_plan(plan_id):
+    """Delete a saved plan"""
+    try:
+        plans = get_plans_list()
+        new_plans = [p for p in plans if p.get('id') != plan_id]
+        if len(new_plans) == len(plans):
+            return jsonify({'success': True, 'message': 'Plan not found'})
+        _write_plans_list(new_plans)
+        return jsonify({'success': True, 'message': 'Plan deleted'})
+    except Exception as e:
+        print(f"Error deleting plan: {e}")
+        return safe_error('Failed to delete plan')
+
+
+@app.route('/api/plans/<plan_id>/start', methods=['POST'])
+@require_api_key
+def start_plan(plan_id):
+    """Convert a saved plan into an active smoke session"""
+    try:
+        plans = get_plans_list()
+        plan = next((p for p in plans if p.get('id') == plan_id), None)
+        if plan is None:
+            return safe_error('Plan not found', 404)
+
+        name = (plan.get('name') or '').strip()[:MAX_NAME_LENGTH]
+        if not name:
+            return safe_error('Plan is missing a name', 400)
+
+        meat_type = (plan.get('meatType') or '').strip()[:MAX_MEAT_TYPE_LENGTH]
+        notes = (plan.get('notes') or '').strip()[:MAX_NOTES_LENGTH]
+        recipe_url = (plan.get('recipeUrl') or '').strip()[:MAX_URL_LENGTH]
+        spices = (plan.get('spices') or '').strip()[:MAX_NOTES_LENGTH]
+        weight = (plan.get('weight') or '').strip()[:MAX_MEAT_TYPE_LENGTH]
+
+        session_id = str(uuid.uuid4())
+        now = datetime.utcnow()
+
+        points = _build_session_points(
+            session_id, now, name, meat_type, notes, recipe_url, spices, weight
+        )
+
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=points)
+
+        # Remove the plan now that it has become a real session
+        remaining = [p for p in plans if p.get('id') != plan_id]
+        _write_plans_list(remaining)
+
+        now_iso = now.isoformat() + 'Z'
+        return jsonify({
+            'session': {
+                'id': session_id,
+                'name': name,
+                'meatType': meat_type,
+                'notes': notes,
+                'recipeUrl': recipe_url,
+                'spices': spices,
+                'weight': weight,
+                'startTime': now_iso,
+                'endTime': None,
+            }
+        })
+
+    except Exception as e:
+        print(f"Error starting plan: {e}")
+        return safe_error('Failed to start plan')
 
 
 @app.route('/api/sessions', methods=['GET'])
@@ -1317,6 +1431,108 @@ from(bucket: "{INFLUX_BUCKET}")
     except Exception as e:
         print(f"Error getting session setting {setting_name}: {e}")
         return ''
+
+
+def _build_session_points(session_id, now, name, meat_type, notes, recipe_url, spices, weight):
+    """Build the list of InfluxDB Points for a new session's metadata."""
+    points = [
+        Point("text")
+            .tag("domain", "input_text")
+            .tag("entity_id", "current_session_id")
+            .tag("current_session_id", session_id)
+            .field("state", session_id)
+            .time(now),
+        Point("text")
+            .tag("domain", "input_text")
+            .tag("entity_id", "smoke_session_name")
+            .tag("current_session_id", session_id)
+            .field("state", name)
+            .time(now),
+        Point("text")
+            .tag("domain", "input_text")
+            .tag("entity_id", "meat_type")
+            .tag("current_session_id", session_id)
+            .field("state", meat_type)
+            .time(now),
+        Point("text")
+            .tag("domain", "input_text")
+            .tag("entity_id", "smoke_session_notes")
+            .tag("current_session_id", session_id)
+            .field("state", notes)
+            .time(now),
+    ]
+
+    if recipe_url:
+        points.append(
+            Point("text")
+                .tag("domain", "input_text")
+                .tag("entity_id", "smoke_session_recipe_url")
+                .tag("current_session_id", session_id)
+                .field("state", recipe_url)
+                .time(now)
+        )
+
+    if spices:
+        points.append(
+            Point("text")
+                .tag("domain", "input_text")
+                .tag("entity_id", "smoke_session_spices")
+                .tag("current_session_id", session_id)
+                .field("state", spices)
+                .time(now)
+        )
+
+    if weight:
+        points.append(
+            Point("text")
+                .tag("domain", "input_text")
+                .tag("entity_id", "smoke_session_weight")
+                .tag("current_session_id", session_id)
+                .field("state", weight)
+                .time(now)
+        )
+
+    return points
+
+
+def get_plans_list():
+    """Read the JSON-encoded list of session plans from InfluxDB."""
+    try:
+        query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -365d)
+  |> filter(fn: (r) => r["_measurement"] == "session_plans_list")
+  |> filter(fn: (r) => r["_field"] == "plans")
+  |> last()
+        '''
+
+        tables = query_api.query(query, org=INFLUX_ORG)
+
+        for table in tables:
+            for record in table.records:
+                value = record.get_value()
+                if value:
+                    try:
+                        decoded = json.loads(value)
+                        if isinstance(decoded, list):
+                            return decoded
+                    except (json.JSONDecodeError, TypeError):
+                        return []
+
+        return []
+
+    except Exception as e:
+        print(f"Error getting plans list: {e}")
+        return []
+
+
+def _write_plans_list(plans):
+    """Persist the full plans list as a single InfluxDB point."""
+    point = Point("session_plans_list") \
+        .tag("app", "smoker_tracker") \
+        .field("plans", json.dumps(plans)) \
+        .time(datetime.utcnow())
+    write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
 
 
 def get_hidden_sessions_list():

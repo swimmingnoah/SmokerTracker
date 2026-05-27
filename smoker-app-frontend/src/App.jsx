@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom';
 import SessionList from './SessionList';
 import SessionDetail from './SessionDetail';
 import CreateSession from './CreateSession';
+import PlanSession from './PlanSession';
 import MeatTypes from './MeatTypes';
 import Login from './Login';
 import { CONFIG } from './config';
@@ -78,6 +79,8 @@ function App() {
           <Route path="/" element={<SessionList />} />
           <Route path="/sessions/new" element={<CreateSession />} />
           <Route path="/sessions/:id" element={<SessionDetail />} />
+          <Route path="/plan/new" element={<PlanSession />} />
+          <Route path="/plan/:id" element={<PlanSession />} />
           <Route path="/meat-types" element={<MeatTypes />} />
         </Routes>
       </div>
