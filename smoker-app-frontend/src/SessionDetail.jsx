@@ -226,7 +226,7 @@ function SessionDetail() {
 				: new Date(session.endTime).toISOString();
 
 			const encodedSessionId = encodeURIComponent(session.id);
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodedSessionId}/setpoints?start=${encodeURIComponent(startTime)}&end=${encodeURIComponent(endTime)}`
 			);
 
@@ -246,7 +246,7 @@ function SessionDetail() {
 	const fetchPauses = async () => {
 		try {
 			const encodedSessionId = encodeURIComponent(session.id);
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodedSessionId}/pauses`
 			);
 			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -266,7 +266,7 @@ function SessionDetail() {
 			setPauseLoading(true);
 			const encodedSessionId = encodeURIComponent(session.id);
 			const action = isPaused ? "resume" : "pause";
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodedSessionId}/${action}`,
 				{ method: "POST" }
 			);
@@ -287,7 +287,7 @@ function SessionDetail() {
 		if (!confirmed) return;
 
 		try {
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}/end`,
 				{
 					method: "POST",
@@ -336,7 +336,7 @@ function SessionDetail() {
 				startTime
 			)}&end=${encodeURIComponent(endTime)}`;
 
-			const response = await fetch(url);
+			const response = await apiFetch(url);
 
 			if (!response.ok) {
 				const errorData = await response.json();
@@ -395,7 +395,7 @@ function SessionDetail() {
 		try {
 			setSavingField("name");
 
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
 				{
 					method: "PUT",
@@ -426,7 +426,7 @@ function SessionDetail() {
 		try {
 			setSavingField("meatType");
 
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
 				{
 					method: "PUT",
@@ -457,7 +457,7 @@ function SessionDetail() {
 		try {
 			setSavingField("notes");
 
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
 				{
 					method: "PUT",
@@ -487,7 +487,7 @@ function SessionDetail() {
 	const handleSaveRecipeUrl = async () => {
 		try {
 			setSavingField("recipeUrl");
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
 				{
 					method: "PUT",
@@ -509,7 +509,7 @@ function SessionDetail() {
 	const handleSaveWeight = async () => {
 		try {
 			setSavingField("weight");
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
 				{
 					method: "PUT",
@@ -536,7 +536,7 @@ function SessionDetail() {
 		try {
 			setSavingField("startTime");
 			const iso = new Date(editedStartTime).toISOString();
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
 				{
 					method: "PUT",
@@ -562,7 +562,7 @@ function SessionDetail() {
 		try {
 			setSavingField("endTime");
 			const iso = editedEndTime ? new Date(editedEndTime).toISOString() : "";
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
 				{
 					method: "PUT",
@@ -587,7 +587,7 @@ function SessionDetail() {
 	const fetchProbeSettings = async () => {
 		try {
 			const encodedSessionId = encodeURIComponent(session.id);
-			const response = await fetch(`${CONFIG.apiUrl}/sessions/${encodedSessionId}/probe-settings`);
+			const response = await apiFetch(`${CONFIG.apiUrl}/sessions/${encodedSessionId}/probe-settings`);
 			if (!response.ok) return;
 			const data = await response.json();
 			setHiddenProbes(new Set(data.hiddenProbes || []));
@@ -600,7 +600,7 @@ function SessionDetail() {
 	const saveProbeSettings = async (hidden, names) => {
 		try {
 			const encodedSessionId = encodeURIComponent(session.id);
-			await fetch(`${CONFIG.apiUrl}/sessions/${encodedSessionId}/probe-settings`, {
+			await apiFetch(`${CONFIG.apiUrl}/sessions/${encodedSessionId}/probe-settings`, {
 				method: "PUT",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
@@ -641,7 +641,7 @@ function SessionDetail() {
 	const handleSaveSpices = async (updatedList) => {
 		const spicesStr = updatedList.join(", ");
 		try {
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
 				{
 					method: "PUT",
@@ -681,7 +681,7 @@ function SessionDetail() {
 	const fetchPhotos = async () => {
 		try {
 			const encodedSessionId = encodeURIComponent(session.id);
-			const response = await fetch(`${CONFIG.apiUrl}/sessions/${encodedSessionId}/photos`);
+			const response = await apiFetch(`${CONFIG.apiUrl}/sessions/${encodedSessionId}/photos`);
 			if (!response.ok) return;
 			const data = await response.json();
 			setPhotos(data.photos);
@@ -700,14 +700,20 @@ function SessionDetail() {
 			formData.append("photo", file);
 
 			const encodedSessionId = encodeURIComponent(session.id);
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodedSessionId}/photos`,
 				{ method: "POST", body: formData }
 			);
 
 			if (!response.ok) {
-				const data = await response.json();
-				throw new Error(data.error || `HTTP error! status: ${response.status}`);
+				let message = `HTTP error! status: ${response.status}`;
+				try {
+					const data = await response.json();
+					if (data.error) message = data.error;
+				} catch {
+					/* non-JSON response */
+				}
+				throw new Error(message);
 			}
 
 			await fetchPhotos();
@@ -723,7 +729,7 @@ function SessionDetail() {
 		if (!window.confirm("Delete this photo?")) return;
 		try {
 			const encodedSessionId = encodeURIComponent(session.id);
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodedSessionId}/photos/${filename}`,
 				{ method: "DELETE" }
 			);
@@ -835,7 +841,7 @@ function SessionDetail() {
 		if (!confirmed) return;
 
 		try {
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
 				{ method: "DELETE" }
 			);
