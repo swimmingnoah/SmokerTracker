@@ -54,6 +54,30 @@ export function computeEstimate(pastSessions, meatType, plannedWeightLbs) {
 	return { sampleCount: 0, avgHrPerLb: null, estimatedDurationHours: null, method: 'none' };
 }
 
+// Given an average cook duration (hours) and the current net cook time (ms),
+// derive the live finish estimate for an active session.
+// Returns null when there is no usable average. Otherwise:
+//   remainingMs  — time left until the average is reached, clamped >= 0
+//   finishDate   — Date = now + remainingMs (meaningful only when !overrun)
+//   progressPct  — net cook time vs average, clamped 0..100
+//   overrun      — true once net cook time has reached/passed the average
+export function computeFinishEstimate(estimatedDurationHours, netCookMs, now = Date.now()) {
+	if (
+		estimatedDurationHours == null ||
+		isNaN(estimatedDurationHours) ||
+		estimatedDurationHours <= 0
+	) {
+		return null;
+	}
+	const avgMs = estimatedDurationHours * 60 * 60 * 1000;
+	const elapsed = Math.max(0, netCookMs || 0);
+	const remainingMs = Math.max(0, avgMs - elapsed);
+	const overrun = elapsed >= avgMs;
+	const progressPct = Math.min(100, Math.max(0, (elapsed / avgMs) * 100));
+	const finishDate = new Date(now + remainingMs);
+	return { remainingMs, finishDate, progressPct, overrun };
+}
+
 export function formatHoursMinutes(hours) {
 	if (hours == null || isNaN(hours)) return 'N/A';
 	const totalMin = Math.max(0, Math.round(hours * 60));
