@@ -1774,6 +1774,12 @@ function SessionDetail() {
 								<Tooltip
 									labelFormatter={(ts) => formatTime(new Date(ts))}
 									formatter={(value) => [`${value}°F`]}
+									contentStyle={{
+										backgroundColor: "#171717",
+										border: "1px solid #404040",
+										borderRadius: "0.5rem",
+									}}
+									labelStyle={{ color: "#e5e5e5", fontWeight: 600 }}
 								/>
 								<Legend />
 								{pauses.reduce((areas, event, index) => {
