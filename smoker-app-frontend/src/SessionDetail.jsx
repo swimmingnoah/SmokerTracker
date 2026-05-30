@@ -12,6 +12,11 @@ import {
 	ReferenceArea,
 } from "recharts";
 import { CONFIG, apiFetch } from "./config";
+import {
+	computeEstimate,
+	computeFinishEstimate,
+	formatHoursMinutes,
+} from "./planUtils";
 
 function SessionDetail() {
 	const { id } = useParams();
@@ -55,6 +60,7 @@ function SessionDetail() {
 	const [showSetpoints, setShowSetpoints] = useState(true);
 	const [hiddenSetpoints, setHiddenSetpoints] = useState(new Set());
 	const [pauses, setPauses] = useState([]);
+	const [pastSessions, setPastSessions] = useState([]);
 	const [isPaused, setIsPaused] = useState(false);
 	const [pauseLoading, setPauseLoading] = useState(false);
 	const [editingPauseIndex, setEditingPauseIndex] = useState(null);
@@ -213,6 +219,17 @@ function SessionDetail() {
 		return () => {
 			if (intervalRef.current) clearInterval(intervalRef.current);
 		};
+	}, [session]);
+
+	// Past sessions power the "estimated finish" card — only needed while active.
+	useEffect(() => {
+		if (!session || !isActiveSession()) return;
+		apiFetch(`${CONFIG.apiUrl}/sessions`)
+			.then((r) => r.json())
+			.then((data) => setPastSessions(data.sessions || []))
+			.catch((err) =>
+				console.error("Error fetching sessions for estimate:", err)
+			);
 	}, [session]);
 
 	const fetchSetpoints = async () => {
@@ -863,6 +880,23 @@ function SessionDetail() {
 		return target - startTime - pausedBefore;
 	};
 
+	// Live finish estimate for an active session: average duration of past
+	// same-meat cooks vs the current net cook time. `est` is always present so
+	// we can show the "not enough history" message; `fin` is null until there's
+	// a usable average. Recomputed each render (the 30s poll keeps it fresh).
+	const finishEstimate = (() => {
+		if (!isActiveSession() || !session?.meatType || !session?.startTime) {
+			return null;
+		}
+		const est = computeEstimate(pastSessions, session.meatType, null);
+		const netMs = netCookMsAt(new Date());
+		const fin =
+			est.estimatedDurationHours != null
+				? computeFinishEstimate(est.estimatedDurationHours, netMs, Date.now())
+				: null;
+		return { est, fin };
+	})();
+
 	const handleDelete = async () => {
 		const confirmed = window.confirm(
 			"Are you sure you want to delete this session? This will hide it from view (temperature data remains in InfluxDB)."
@@ -1187,6 +1221,66 @@ function SessionDetail() {
 						)}
 					</div>
 				</div>
+
+				{/* Estimated finish (active sessions only) */}
+				{finishEstimate && (
+					<div className="mt-4 p-4 bg-neutral-950/50 rounded-lg">
+						<div className="flex justify-between items-center mb-2">
+							<p className="text-sm text-neutral-500 font-medium">
+								Estimated finish
+							</p>
+							{finishEstimate.est.sampleCount > 0 && (
+								<p className="text-xs text-neutral-600">
+									Avg {session.meatType}:{" "}
+									{formatHoursMinutes(
+										finishEstimate.est.estimatedDurationHours
+									)}{" "}
+									· {finishEstimate.est.sampleCount} cook
+									{finishEstimate.est.sampleCount === 1 ? "" : "s"}
+								</p>
+							)}
+						</div>
+
+						{finishEstimate.fin ? (
+							<div>
+								<div className="flex justify-between items-baseline mb-2">
+									<p className="text-lg font-semibold text-white">
+										{finishEstimate.fin.overrun
+											? "Est. done — running long"
+											: `Est. done ~${finishEstimate.fin.finishDate.toLocaleTimeString(
+													"en-US",
+													{ hour: "numeric", minute: "2-digit" }
+											  )}`}
+									</p>
+									<p className="text-sm text-neutral-400">
+										{finishEstimate.fin.overrun
+											? "running long"
+											: `~${formatHoursMinutes(
+													finishEstimate.fin.remainingMs / (60 * 60 * 1000)
+											  )} left`}
+									</p>
+								</div>
+								<div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden">
+									<div
+										className={`h-full rounded-full ${
+											finishEstimate.fin.overrun
+												? "bg-red-500"
+												: "bg-orange-500"
+										}`}
+										style={{ width: `${finishEstimate.fin.progressPct}%` }}
+									/>
+								</div>
+								<p className="text-xs text-neutral-600 mt-1">
+									{Math.round(finishEstimate.fin.progressPct)}% of average
+								</p>
+							</div>
+						) : (
+							<p className="text-neutral-500 italic">
+								Not enough {session.meatType} cooks yet to estimate.
+							</p>
+						)}
+					</div>
+				)}
 
 				{/* Editable Notes Section */}
 				<div className="mt-4 p-4 bg-neutral-950/50 rounded-lg">
