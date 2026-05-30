@@ -44,6 +44,7 @@ function SessionDetail() {
 	const [editedWeight, setEditedWeight] = useState(session?.weight || "");
 	const [savingField, setSavingField] = useState(null);
 	const [hiddenProbes, setHiddenProbes] = useState(new Set());
+	const [scrubPoint, setScrubPoint] = useState(null);
 	const [customProbeNames, setCustomProbeNames] = useState({});
 	const [editingProbeName, setEditingProbeName] = useState(null);
 	const [editedProbeName, setEditedProbeName] = useState("");
@@ -226,7 +227,7 @@ function SessionDetail() {
 				: new Date(session.endTime).toISOString();
 
 			const encodedSessionId = encodeURIComponent(session.id);
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodedSessionId}/setpoints?start=${encodeURIComponent(startTime)}&end=${encodeURIComponent(endTime)}`
 			);
 
@@ -246,7 +247,7 @@ function SessionDetail() {
 	const fetchPauses = async () => {
 		try {
 			const encodedSessionId = encodeURIComponent(session.id);
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodedSessionId}/pauses`
 			);
 			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -266,7 +267,7 @@ function SessionDetail() {
 			setPauseLoading(true);
 			const encodedSessionId = encodeURIComponent(session.id);
 			const action = isPaused ? "resume" : "pause";
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodedSessionId}/${action}`,
 				{ method: "POST" }
 			);
@@ -287,7 +288,7 @@ function SessionDetail() {
 		if (!confirmed) return;
 
 		try {
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}/end`,
 				{
 					method: "POST",
@@ -336,7 +337,7 @@ function SessionDetail() {
 				startTime
 			)}&end=${encodeURIComponent(endTime)}`;
 
-			const response = await fetch(url);
+			const response = await apiFetch(url);
 
 			if (!response.ok) {
 				const errorData = await response.json();
@@ -395,7 +396,7 @@ function SessionDetail() {
 		try {
 			setSavingField("name");
 
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
 				{
 					method: "PUT",
@@ -426,7 +427,7 @@ function SessionDetail() {
 		try {
 			setSavingField("meatType");
 
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
 				{
 					method: "PUT",
@@ -457,7 +458,7 @@ function SessionDetail() {
 		try {
 			setSavingField("notes");
 
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
 				{
 					method: "PUT",
@@ -487,7 +488,7 @@ function SessionDetail() {
 	const handleSaveRecipeUrl = async () => {
 		try {
 			setSavingField("recipeUrl");
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
 				{
 					method: "PUT",
@@ -509,7 +510,7 @@ function SessionDetail() {
 	const handleSaveWeight = async () => {
 		try {
 			setSavingField("weight");
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
 				{
 					method: "PUT",
@@ -536,7 +537,7 @@ function SessionDetail() {
 		try {
 			setSavingField("startTime");
 			const iso = new Date(editedStartTime).toISOString();
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
 				{
 					method: "PUT",
@@ -562,7 +563,7 @@ function SessionDetail() {
 		try {
 			setSavingField("endTime");
 			const iso = editedEndTime ? new Date(editedEndTime).toISOString() : "";
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
 				{
 					method: "PUT",
@@ -587,7 +588,7 @@ function SessionDetail() {
 	const fetchProbeSettings = async () => {
 		try {
 			const encodedSessionId = encodeURIComponent(session.id);
-			const response = await fetch(`${CONFIG.apiUrl}/sessions/${encodedSessionId}/probe-settings`);
+			const response = await apiFetch(`${CONFIG.apiUrl}/sessions/${encodedSessionId}/probe-settings`);
 			if (!response.ok) return;
 			const data = await response.json();
 			setHiddenProbes(new Set(data.hiddenProbes || []));
@@ -600,7 +601,7 @@ function SessionDetail() {
 	const saveProbeSettings = async (hidden, names) => {
 		try {
 			const encodedSessionId = encodeURIComponent(session.id);
-			await fetch(`${CONFIG.apiUrl}/sessions/${encodedSessionId}/probe-settings`, {
+			await apiFetch(`${CONFIG.apiUrl}/sessions/${encodedSessionId}/probe-settings`, {
 				method: "PUT",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
@@ -641,7 +642,7 @@ function SessionDetail() {
 	const handleSaveSpices = async (updatedList) => {
 		const spicesStr = updatedList.join(", ");
 		try {
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
 				{
 					method: "PUT",
@@ -681,7 +682,7 @@ function SessionDetail() {
 	const fetchPhotos = async () => {
 		try {
 			const encodedSessionId = encodeURIComponent(session.id);
-			const response = await fetch(`${CONFIG.apiUrl}/sessions/${encodedSessionId}/photos`);
+			const response = await apiFetch(`${CONFIG.apiUrl}/sessions/${encodedSessionId}/photos`);
 			if (!response.ok) return;
 			const data = await response.json();
 			setPhotos(data.photos);
@@ -700,14 +701,20 @@ function SessionDetail() {
 			formData.append("photo", file);
 
 			const encodedSessionId = encodeURIComponent(session.id);
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodedSessionId}/photos`,
 				{ method: "POST", body: formData }
 			);
 
 			if (!response.ok) {
-				const data = await response.json();
-				throw new Error(data.error || `HTTP error! status: ${response.status}`);
+				let message = `HTTP error! status: ${response.status}`;
+				try {
+					const data = await response.json();
+					if (data.error) message = data.error;
+				} catch {
+					/* non-JSON response */
+				}
+				throw new Error(message);
 			}
 
 			await fetchPhotos();
@@ -723,7 +730,7 @@ function SessionDetail() {
 		if (!window.confirm("Delete this photo?")) return;
 		try {
 			const encodedSessionId = encodeURIComponent(session.id);
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodedSessionId}/photos/${filename}`,
 				{ method: "DELETE" }
 			);
@@ -828,6 +835,34 @@ function SessionDetail() {
 		return `${hours}h ${minutes}m`;
 	};
 
+	const formatHm = (ms) => {
+		const clamped = Math.max(0, ms);
+		const hours = Math.floor(clamped / (1000 * 60 * 60));
+		const minutes = Math.floor((clamped % (1000 * 60 * 60)) / (1000 * 60));
+		return `${hours}h ${minutes}m`;
+	};
+
+	// Net cook time (start → moment, minus pauses that completed before it).
+	// Mirrors calculateDuration's net math so the numbers agree with the top timer.
+	const netCookMsAt = (time) => {
+		if (!session.startTime) return null;
+		const target = new Date(time);
+		const startTime = new Date(session.startTime);
+		let pausedBefore = 0;
+		let pauseStart = null;
+		for (const event of pauses) {
+			const t = new Date(event.time);
+			if (t >= target) break;
+			if (event.type === "pause") {
+				pauseStart = t;
+			} else if (event.type === "resume" && pauseStart) {
+				pausedBefore += t - pauseStart;
+				pauseStart = null;
+			}
+		}
+		return target - startTime - pausedBefore;
+	};
+
 	const handleDelete = async () => {
 		const confirmed = window.confirm(
 			"Are you sure you want to delete this session? This will hide it from view (temperature data remains in InfluxDB)."
@@ -835,7 +870,7 @@ function SessionDetail() {
 		if (!confirmed) return;
 
 		try {
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/sessions/${encodeURIComponent(session.id)}`,
 				{ method: "DELETE" }
 			);
@@ -1644,16 +1679,23 @@ function SessionDetail() {
 											</button>
 										</div>
 									) : (
-										<div
-											className="text-xs text-neutral-500 mt-0.5 cursor-pointer hover:text-orange-400"
-											onClick={() => {
-												setEditingPauseIndex(index);
-												setEditedPauseTime(toLocalDatetimeValue(event.time));
-											}}
-											title="Click to edit time"
-										>
-											{formatDate(event.time)}
-										</div>
+										<>
+											<div
+												className="text-xs text-neutral-500 mt-0.5 cursor-pointer hover:text-orange-400"
+												onClick={() => {
+													setEditingPauseIndex(index);
+													setEditedPauseTime(toLocalDatetimeValue(event.time));
+												}}
+												title="Click to edit time"
+											>
+												{formatDate(event.time)}
+											</div>
+											{netCookMsAt(event.time) !== null && (
+												<div className="text-xs text-neutral-600 mt-0.5">
+													{formatHm(netCookMsAt(event.time))} into cook
+												</div>
+											)}
+										</>
 									)}
 								</div>
 								{durationLabel && !isEditing && (
@@ -1681,11 +1723,43 @@ function SessionDetail() {
 			) : (
 				<>
 					<div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3 sm:p-6 mb-6">
-						<h3 className="text-lg sm:text-xl font-bold text-white mb-4">
-							Temperature Over Time
-						</h3>
+						<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+							<h3 className="text-lg sm:text-xl font-bold text-white">
+								Temperature Over Time
+							</h3>
+							{scrubPoint && (
+								<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+									<span className="text-neutral-300 font-medium">
+										{formatTime(new Date(scrubPoint.time))}
+									</span>
+									{netCookMsAt(scrubPoint.time) !== null && (
+										<span className="text-neutral-500">
+											{formatHm(netCookMsAt(scrubPoint.time))} into cook
+										</span>
+									)}
+									{scrubPoint.payload.map((p) => (
+										<span key={p.dataKey} className="flex items-center gap-1.5">
+											<span
+												className="inline-block w-2 h-2 rounded-full"
+												style={{ backgroundColor: p.color }}
+											/>
+											<span className="text-neutral-400">{p.name}</span>
+											<span className="text-neutral-200 font-semibold">{p.value}°F</span>
+										</span>
+									))}
+								</div>
+							)}
+						</div>
 						<ResponsiveContainer width="100%" height={400}>
-							<LineChart data={temperatureData}>
+							<LineChart
+								data={temperatureData}
+								onMouseMove={(e) => {
+									if (e?.activePayload?.length) {
+										setScrubPoint({ time: e.activeLabel, payload: e.activePayload });
+									}
+								}}
+								onMouseLeave={() => setScrubPoint(null)}
+							>
 								<CartesianGrid strokeDasharray="3 3" />
 								<XAxis
 									dataKey="time"

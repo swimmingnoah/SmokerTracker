@@ -59,7 +59,7 @@ function MeatTypes() {
 		}
 
 		try {
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/meat-types/${encodeURIComponent(oldName)}`,
 				{
 					method: 'PUT',
@@ -83,7 +83,7 @@ function MeatTypes() {
 		if (!confirmed) return;
 
 		try {
-			const response = await fetch(
+			const response = await apiFetch(
 				`${CONFIG.apiUrl}/meat-types/${encodeURIComponent(meatType)}`,
 				{ method: 'DELETE' }
 			);
