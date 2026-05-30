@@ -44,6 +44,7 @@ function SessionDetail() {
 	const [editedWeight, setEditedWeight] = useState(session?.weight || "");
 	const [savingField, setSavingField] = useState(null);
 	const [hiddenProbes, setHiddenProbes] = useState(new Set());
+	const [scrubPoint, setScrubPoint] = useState(null);
 	const [customProbeNames, setCustomProbeNames] = useState({});
 	const [editingProbeName, setEditingProbeName] = useState(null);
 	const [editedProbeName, setEditedProbeName] = useState("");
@@ -832,6 +833,34 @@ function SessionDetail() {
 		const hours = Math.floor(netMs / (1000 * 60 * 60));
 		const minutes = Math.floor((netMs % (1000 * 60 * 60)) / (1000 * 60));
 		return `${hours}h ${minutes}m`;
+	};
+
+	const formatHm = (ms) => {
+		const clamped = Math.max(0, ms);
+		const hours = Math.floor(clamped / (1000 * 60 * 60));
+		const minutes = Math.floor((clamped % (1000 * 60 * 60)) / (1000 * 60));
+		return `${hours}h ${minutes}m`;
+	};
+
+	// Net cook time (start → moment, minus pauses that completed before it).
+	// Mirrors calculateDuration's net math so the numbers agree with the top timer.
+	const netCookMsAt = (time) => {
+		if (!session.startTime) return null;
+		const target = new Date(time);
+		const startTime = new Date(session.startTime);
+		let pausedBefore = 0;
+		let pauseStart = null;
+		for (const event of pauses) {
+			const t = new Date(event.time);
+			if (t >= target) break;
+			if (event.type === "pause") {
+				pauseStart = t;
+			} else if (event.type === "resume" && pauseStart) {
+				pausedBefore += t - pauseStart;
+				pauseStart = null;
+			}
+		}
+		return target - startTime - pausedBefore;
 	};
 
 	const handleDelete = async () => {
@@ -1650,16 +1679,23 @@ function SessionDetail() {
 											</button>
 										</div>
 									) : (
-										<div
-											className="text-xs text-neutral-500 mt-0.5 cursor-pointer hover:text-orange-400"
-											onClick={() => {
-												setEditingPauseIndex(index);
-												setEditedPauseTime(toLocalDatetimeValue(event.time));
-											}}
-											title="Click to edit time"
-										>
-											{formatDate(event.time)}
-										</div>
+										<>
+											<div
+												className="text-xs text-neutral-500 mt-0.5 cursor-pointer hover:text-orange-400"
+												onClick={() => {
+													setEditingPauseIndex(index);
+													setEditedPauseTime(toLocalDatetimeValue(event.time));
+												}}
+												title="Click to edit time"
+											>
+												{formatDate(event.time)}
+											</div>
+											{netCookMsAt(event.time) !== null && (
+												<div className="text-xs text-neutral-600 mt-0.5">
+													{formatHm(netCookMsAt(event.time))} into cook
+												</div>
+											)}
+										</>
 									)}
 								</div>
 								{durationLabel && !isEditing && (
@@ -1687,11 +1723,43 @@ function SessionDetail() {
 			) : (
 				<>
 					<div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3 sm:p-6 mb-6">
-						<h3 className="text-lg sm:text-xl font-bold text-white mb-4">
-							Temperature Over Time
-						</h3>
+						<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+							<h3 className="text-lg sm:text-xl font-bold text-white">
+								Temperature Over Time
+							</h3>
+							{scrubPoint && (
+								<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+									<span className="text-neutral-300 font-medium">
+										{formatTime(new Date(scrubPoint.time))}
+									</span>
+									{netCookMsAt(scrubPoint.time) !== null && (
+										<span className="text-neutral-500">
+											{formatHm(netCookMsAt(scrubPoint.time))} into cook
+										</span>
+									)}
+									{scrubPoint.payload.map((p) => (
+										<span key={p.dataKey} className="flex items-center gap-1.5">
+											<span
+												className="inline-block w-2 h-2 rounded-full"
+												style={{ backgroundColor: p.color }}
+											/>
+											<span className="text-neutral-400">{p.name}</span>
+											<span className="text-neutral-200 font-semibold">{p.value}°F</span>
+										</span>
+									))}
+								</div>
+							)}
+						</div>
 						<ResponsiveContainer width="100%" height={400}>
-							<LineChart data={temperatureData}>
+							<LineChart
+								data={temperatureData}
+								onMouseMove={(e) => {
+									if (e?.activePayload?.length) {
+										setScrubPoint({ time: e.activeLabel, payload: e.activePayload });
+									}
+								}}
+								onMouseLeave={() => setScrubPoint(null)}
+							>
 								<CartesianGrid strokeDasharray="3 3" />
 								<XAxis
 									dataKey="time"
