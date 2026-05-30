@@ -1,5 +1,8 @@
 # ---- Stage 1: Build React frontend ----
-FROM node:20-alpine AS frontend-builder
+# node:22 (LTS) satisfies the engines of the test toolchain pulled in by
+# Vitest 4 / Rolldown / jsdom (node ^20.19 || >=22.12); node:20-alpine
+# could resolve to an older 20.x and fail `npm ci`.
+FROM node:22-alpine AS frontend-builder
 
 ARG VITE_API_KEY=""
 ENV VITE_API_KEY=${VITE_API_KEY}
