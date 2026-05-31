@@ -7,6 +7,7 @@ import {
 	formatHoursMinutes,
 	formatDateTime,
 } from './planUtils';
+import EstimatedFinish from './EstimatedFinish';
 
 // Stable color per meat type so cards stay visually consistent across reloads.
 const MEAT_PALETTE = [
@@ -323,6 +324,24 @@ function SessionList() {
 											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
 										</svg>
 									</div>
+									{(() => {
+										// Wall-clock elapsed (matches the Elapsed figure above)
+										// vs the same-meat average. Hidden when there's no history.
+										const est = computeEstimate(sessions, session.meatType, null);
+										if (est.estimatedDurationHours == null) return null;
+										const elapsedMs =
+											Date.now() - new Date(session.startTime).getTime();
+										return (
+											<div className="mt-4 pt-4 border-t border-orange-500/15">
+												<EstimatedFinish
+													estimatedDurationHours={est.estimatedDurationHours}
+													sampleCount={est.sampleCount}
+													elapsedMs={elapsedMs}
+													meatType={session.meatType}
+												/>
+											</div>
+										);
+									})()}
 								</div>
 							);
 						})}
